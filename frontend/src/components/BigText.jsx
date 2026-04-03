@@ -46,13 +46,23 @@ function fitLines(ctx, lines, font, bold, letterSpacing, maxW, maxH) {
   while (lo <= hi) {
     const size = Math.floor((lo + hi) / 2);
     applyFont(ctx, size, font, bold);
+    ctx.textBaseline = 'alphabetic';
 
-    const lineH = size * 1.15;
-    const totalH = lineH * lines.length;
+    // Measure true painted height from actualBoundingBox metrics
+    let maxAscent = 0;
+    let maxDescent = 0;
+    for (const line of lines) {
+      const m = ctx.measureText(line || 'M');
+      maxAscent = Math.max(maxAscent, m.actualBoundingBoxAscent);
+      maxDescent = Math.max(maxDescent, m.actualBoundingBoxDescent);
+    }
+    const lineH = maxAscent + maxDescent;
+    const gap = size * 0.15;
+    const totalH = lineH * lines.length + gap * (lines.length - 1);
     const maxLineW = Math.max(...lines.map(l => measureLine(ctx, l, letterSpacing)));
 
     if (maxLineW <= maxW && totalH <= maxH) {
-      best = { size, lines, coverage: maxLineW * totalH, totalH, maxLineW, lineH };
+      best = { size, lines, coverage: maxLineW * totalH, totalH, maxLineW, lineH, gap, maxAscent };
       lo = size + 1;
     } else {
       hi = size - 1;
@@ -107,9 +117,16 @@ function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
   const fit = fitText(ctx, text, W, H, font, bold, letterSpacing);
   if (!fit) return;
 
+  console.log('renderCanvas:', {
+    canvasW: W, canvasH: H,
+    maxW: W - PAD * 2, maxH: H - PAD * 2,
+    fitSize: fit.size, totalH: fit.totalH, maxLineW: fit.maxLineW,
+    overflowW: fit.maxLineW > W - PAD * 2, overflowH: fit.totalH > H - PAD * 2,
+  });
+
   applyFont(ctx, fit.size, font, bold);
   ctx.fillStyle = 'black';
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = 'alphabetic';
 
   let startY;
   if (vAlign === 'top') startY = PAD;
@@ -124,7 +141,9 @@ function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
     else if (hAlign === 'right') startX = W - PAD - lineW;
     else startX = (W - lineW) / 2;
 
-    drawLine(ctx, line, startX, startY + i * fit.lineH, letterSpacing);
+    // Position baseline: top of block + line offset + ascent
+    const y = startY + i * (fit.lineH + fit.gap) + fit.maxAscent;
+    drawLine(ctx, line, startX, y, letterSpacing);
   }
 }
 

@@ -143,12 +143,14 @@ export default function BigText() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [customW, setCustomW] = useState(4.0);
   const [customH, setCustomH] = useState(2.0);
-  const [displayScale, setDisplayScale] = useState(1);
+  const [displayScale, setDisplayScale] = useState(0);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
 
   const preset = PRESETS[presetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
+
+  console.log('displayScale:', displayScale);
 
   // Handle window/container resize — uses contentRect which excludes padding
   useEffect(() => {

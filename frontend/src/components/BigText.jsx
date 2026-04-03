@@ -325,8 +325,8 @@ export default function BigText() {
         <div className="control-group">
           <span>Style</span>
           <div className="btn-group">
-            <button className={allCaps ? 'active' : ''} onClick={() => setAllCaps(!allCaps)}>All Caps</button>
-            <button className={smallCaps ? 'active' : ''} onClick={() => setSmallCaps(!smallCaps)}>Small Caps</button>
+            <button className={allCaps ? 'active' : ''} onClick={() => { setAllCaps(!allCaps); setSmallCaps(false); }}>All Caps</button>
+            <button className={smallCaps ? 'active' : ''} onClick={() => { setSmallCaps(!smallCaps); setAllCaps(false); }}>Small Caps</button>
             <button className={italic ? 'active' : ''} onClick={() => setItalic(!italic)}>Italic</button>
           </div>
         </div>

@@ -117,33 +117,39 @@ function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
   const fit = fitText(ctx, text, W, H, font, bold, letterSpacing);
   if (!fit) return;
 
-  console.log('renderCanvas:', {
-    canvasW: W, canvasH: H,
-    maxW: W - PAD * 2, maxH: H - PAD * 2,
-    fitSize: fit.size, totalH: fit.totalH, maxLineW: fit.maxLineW,
-    overflowW: fit.maxLineW > W - PAD * 2, overflowH: fit.totalH > H - PAD * 2,
-  });
-
   applyFont(ctx, fit.size, font, bold);
   ctx.fillStyle = 'black';
   ctx.textBaseline = 'alphabetic';
 
+  const maxW = W - PAD * 2;
   let startY;
   if (vAlign === 'top') startY = PAD;
   else if (vAlign === 'bottom') startY = H - PAD - fit.totalH;
   else startY = (H - fit.totalH) / 2;
 
+  const isMultiLine = fit.lines.length > 1;
+
   for (let i = 0; i < fit.lines.length; i++) {
     const line = fit.lines[i];
+    const isLastLine = i === fit.lines.length - 1;
     const lineW = measureLine(ctx, line, letterSpacing);
     let startX;
-    if (hAlign === 'left') startX = PAD;
-    else if (hAlign === 'right') startX = W - PAD - lineW;
-    else startX = (W - lineW) / 2;
+    let lineLetterSpacing = letterSpacing;
 
-    // Position baseline: top of block + line offset + ascent
+    if (hAlign === 'justify' && isMultiLine && !isLastLine && [...line].length > 1) {
+      const naturalW = measureLine(ctx, line, 0);
+      lineLetterSpacing = (maxW - naturalW) / ([...line].length - 1);
+      startX = PAD;
+    } else if (hAlign === 'justify' || hAlign === 'left') {
+      startX = PAD;
+    } else if (hAlign === 'right') {
+      startX = W - PAD - lineW;
+    } else {
+      startX = (W - lineW) / 2;
+    }
+
     const y = startY + i * (fit.lineH + fit.gap) + fit.maxAscent;
-    drawLine(ctx, line, startX, y, letterSpacing);
+    drawLine(ctx, line, startX, y, lineLetterSpacing);
   }
 }
 
@@ -163,13 +169,12 @@ export default function BigText() {
   const [customW, setCustomW] = useState(4.0);
   const [customH, setCustomH] = useState(2.0);
   const [displayScale, setDisplayScale] = useState(0);
+  const [allCaps, setAllCaps] = useState(false);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
 
   const preset = PRESETS[presetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
-
-  console.log('displayScale:', displayScale);
 
   // Handle window/container resize — uses contentRect which excludes padding
   useEffect(() => {
@@ -256,7 +261,7 @@ export default function BigText() {
           <span>Text</span>
           <textarea
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={e => setText(allCaps ? e.target.value.toUpperCase() : e.target.value)}
             placeholder="Type something..."
             rows={3}
           />
@@ -280,9 +285,25 @@ export default function BigText() {
         </div>
 
         <div className="control-group">
+          <span>Case</span>
+          <div className="btn-group">
+            <button
+              className={allCaps ? 'active' : ''}
+              onClick={() => {
+                const next = !allCaps;
+                setAllCaps(next);
+                if (next) setText(text.toUpperCase());
+              }}
+            >
+              All Caps
+            </button>
+          </div>
+        </div>
+
+        <div className="control-group">
           <span>Horizontal</span>
           <div className="btn-group">
-            {['left', 'center', 'right'].map(a => (
+            {['left', 'center', 'right', 'justify'].map(a => (
               <button
                 key={a}
                 className={hAlign === a ? 'active' : ''}

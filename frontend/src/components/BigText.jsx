@@ -16,39 +16,64 @@ const PAD = 20;
 
 // ── Canvas drawing helpers ────────────────────────────────────────────────────
 
-function measureLine(ctx, text, letterSpacing) {
+function measureLine(ctx, text, letterSpacing, scInfo) {
   if (!text) return 0;
+  const chars = [...text];
   let width = 0;
-  for (const ch of text) {
-    width += ctx.measureText(ch).width + letterSpacing;
+  if (scInfo) {
+    const origChars = [...scInfo.origLine];
+    for (let i = 0; i < chars.length; i++) {
+      const origCh = origChars[i] ?? chars[i];
+      const isLower = origCh !== origCh.toUpperCase();
+      applyFont(ctx, isLower ? scInfo.smallSize : scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
+      width += ctx.measureText(chars[i]).width + letterSpacing;
+    }
+    applyFont(ctx, scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
+  } else {
+    for (const ch of chars) {
+      width += ctx.measureText(ch).width + letterSpacing;
+    }
   }
-  return width - letterSpacing; // no trailing spacing
+  return width - letterSpacing;
 }
 
-function drawLine(ctx, text, x, y, letterSpacing) {
+function drawLine(ctx, text, x, y, letterSpacing, scInfo) {
+  const chars = [...text];
   let cx = x;
-  for (const ch of text) {
-    ctx.fillText(ch, cx, y);
-    cx += ctx.measureText(ch).width + letterSpacing;
+  if (scInfo) {
+    const origChars = [...scInfo.origLine];
+    for (let i = 0; i < chars.length; i++) {
+      const origCh = origChars[i] ?? chars[i];
+      const isLower = origCh !== origCh.toUpperCase();
+      applyFont(ctx, isLower ? scInfo.smallSize : scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
+      ctx.fillText(chars[i], cx, y);
+      cx += ctx.measureText(chars[i]).width + letterSpacing;
+    }
+    applyFont(ctx, scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
+  } else {
+    for (const ch of chars) {
+      ctx.fillText(ch, cx, y);
+      cx += ctx.measureText(ch).width + letterSpacing;
+    }
   }
 }
 
-function applyFont(ctx, size, font, bold) {
-  ctx.font = `${bold ? 'bold ' : ''}${size}px "${font}"`;
+function applyFont(ctx, size, font, bold, italic) {
+  ctx.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${size}px "${font}"`;
 }
 
 /** Binary-search the largest font size where all lines fit within maxW × maxH. */
-function fitLines(ctx, lines, font, bold, letterSpacing, maxW, maxH) {
+function fitLines(ctx, lines, font, bold, italic, letterSpacing, maxW, maxH, smallCaps, origLines) {
   let lo = 4;
   let hi = 2000;
   let best = null;
 
   while (lo <= hi) {
     const size = Math.floor((lo + hi) / 2);
-    applyFont(ctx, size, font, bold);
+    applyFont(ctx, size, font, bold, italic);
     ctx.textBaseline = 'alphabetic';
 
-    // Measure true painted height from actualBoundingBox metrics
+    // Measure true painted height from actualBoundingBox metrics (use full size — capitals set the line height)
     let maxAscent = 0;
     let maxDescent = 0;
     for (const line of lines) {
@@ -59,10 +84,15 @@ function fitLines(ctx, lines, font, bold, letterSpacing, maxW, maxH) {
     const lineH = maxAscent + maxDescent;
     const gap = size * 0.15;
     const totalH = lineH * lines.length + gap * (lines.length - 1);
-    const maxLineW = Math.max(...lines.map(l => measureLine(ctx, l, letterSpacing)));
+
+    const smallSize = Math.round(size * 0.7);
+    const maxLineW = Math.max(...lines.map((l, i) => {
+      const scInfo = smallCaps ? { origLine: origLines[i], fullSize: size, smallSize, font, bold, italic } : null;
+      return measureLine(ctx, l, letterSpacing, scInfo);
+    }));
 
     if (maxLineW <= maxW && totalH <= maxH) {
-      best = { size, lines, coverage: maxLineW * totalH, totalH, maxLineW, lineH, gap, maxAscent };
+      best = { size, lines, origLines, coverage: maxLineW * totalH, totalH, maxLineW, lineH, gap, maxAscent };
       lo = size + 1;
     } else {
       hi = size - 1;
@@ -83,18 +113,20 @@ function splitWords(words, numLines) {
 }
 
 /** Find the best font size + layout for the given text. */
-function fitText(ctx, text, canvasW, canvasH, font, bold, letterSpacing) {
+function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, italic, letterSpacing, smallCaps) {
   const maxW = canvasW - PAD * 2;
   const maxH = canvasH - PAD * 2;
-  const words = text.trim().split(/\s+/);
+  const words = displayText.trim().split(/\s+/);
+  const origWords = originalText.trim().split(/\s+/);
   if (!words[0]) return null;
 
-  let best = fitLines(ctx, [text.trim()], font, bold, letterSpacing, maxW, maxH);
+  let best = fitLines(ctx, [displayText.trim()], font, bold, italic, letterSpacing, maxW, maxH, smallCaps, [originalText.trim()]);
 
   if (words.length > 1) {
     for (let n = 2; n <= words.length; n++) {
       const lines = splitWords(words, n);
-      const result = fitLines(ctx, lines, font, bold, letterSpacing, maxW, maxH);
+      const oLines = splitWords(origWords, n);
+      const result = fitLines(ctx, lines, font, bold, italic, letterSpacing, maxW, maxH, smallCaps, oLines);
       if (result && (!best || result.coverage > best.coverage)) {
         best = result;
       }
@@ -104,7 +136,7 @@ function fitText(ctx, text, canvasW, canvasH, font, bold, letterSpacing) {
   return best;
 }
 
-function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
+function renderCanvas(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
   const H = canvas.height;
@@ -112,32 +144,34 @@ function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, W, H);
 
-  if (!text.trim()) return;
+  if (!displayText.trim()) return;
 
-  const fit = fitText(ctx, text, W, H, font, bold, letterSpacing);
+  const fit = fitText(ctx, displayText, originalText, W, H, font, bold, italic, letterSpacing, smallCaps);
   if (!fit) return;
 
-  applyFont(ctx, fit.size, font, bold);
+  applyFont(ctx, fit.size, font, bold, italic);
   ctx.fillStyle = 'black';
   ctx.textBaseline = 'alphabetic';
 
   const maxW = W - PAD * 2;
+  const smallSize = Math.round(fit.size * 0.7);
+
   let startY;
   if (vAlign === 'top') startY = PAD;
   else if (vAlign === 'bottom') startY = H - PAD - fit.totalH;
   else startY = (H - fit.totalH) / 2;
 
-  const isMultiLine = fit.lines.length > 1;
-
   for (let i = 0; i < fit.lines.length; i++) {
     const line = fit.lines[i];
-    const isLastLine = i === fit.lines.length - 1;
-    const lineW = measureLine(ctx, line, letterSpacing);
+    const origLine = fit.origLines[i];
+    const scInfo = smallCaps ? { origLine, fullSize: fit.size, smallSize, font, bold, italic } : null;
+    const lineW = measureLine(ctx, line, letterSpacing, scInfo);
     let startX;
     let lineLetterSpacing = letterSpacing;
+    let lineScInfo = scInfo;
 
-    if (hAlign === 'justify' && isMultiLine && !isLastLine && [...line].length > 1) {
-      const naturalW = measureLine(ctx, line, 0);
+    if (hAlign === 'justify' && [...line].length > 1) {
+      const naturalW = measureLine(ctx, line, 0, scInfo);
       lineLetterSpacing = (maxW - naturalW) / ([...line].length - 1);
       startX = PAD;
     } else if (hAlign === 'justify' || hAlign === 'left') {
@@ -149,7 +183,7 @@ function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
     }
 
     const y = startY + i * (fit.lineH + fit.gap) + fit.maxAscent;
-    drawLine(ctx, line, startX, y, lineLetterSpacing);
+    drawLine(ctx, line, startX, y, lineLetterSpacing, lineScInfo);
   }
 }
 
@@ -170,11 +204,15 @@ export default function BigText() {
   const [customH, setCustomH] = useState(2.0);
   const [displayScale, setDisplayScale] = useState(0);
   const [allCaps, setAllCaps] = useState(false);
+  const [smallCaps, setSmallCaps] = useState(false);
+  const [italic, setItalic] = useState(false);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
 
   const preset = PRESETS[presetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
+
+  const displayText = (allCaps || smallCaps) ? text.toUpperCase() : text;
 
   // Handle window/container resize — uses contentRect which excludes padding
   useEffect(() => {
@@ -209,13 +247,13 @@ export default function BigText() {
 
     // Await font load before measuring/drawing to avoid stale glyph metrics
     let cancelled = false;
-    const fontSpec = `${bold ? 'bold ' : ''}40px "${font}"`;
+    const fontSpec = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}40px "${font}"`;
     document.fonts.load(fontSpec).then(() => {
       if (cancelled) return;
-      renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing);
+      renderCanvas(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing);
     });
     return () => { cancelled = true; };
-  }, [text, font, bold, hAlign, vAlign, letterSpacing, labelW, labelH]);
+  }, [displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, labelW, labelH]);
 
   const handlePrint = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -261,7 +299,7 @@ export default function BigText() {
           <span>Text</span>
           <textarea
             value={text}
-            onChange={e => setText(allCaps ? e.target.value.toUpperCase() : e.target.value)}
+            onChange={e => setText(e.target.value)}
             placeholder="Type something..."
             rows={3}
           />
@@ -285,18 +323,11 @@ export default function BigText() {
         </div>
 
         <div className="control-group">
-          <span>Case</span>
+          <span>Style</span>
           <div className="btn-group">
-            <button
-              className={allCaps ? 'active' : ''}
-              onClick={() => {
-                const next = !allCaps;
-                setAllCaps(next);
-                if (next) setText(text.toUpperCase());
-              }}
-            >
-              All Caps
-            </button>
+            <button className={allCaps ? 'active' : ''} onClick={() => setAllCaps(!allCaps)}>All Caps</button>
+            <button className={smallCaps ? 'active' : ''} onClick={() => setSmallCaps(!smallCaps)}>Small Caps</button>
+            <button className={italic ? 'active' : ''} onClick={() => setItalic(!italic)}>Italic</button>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import base64
+import time
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,7 +81,6 @@ async def print_label(req: PrintRequest):
         )
 
     lo_commands = bitmap_to_lo_commands(bitmap_bytes, req.width, req.height)
-    print(f"Generated {len(lo_commands)} LO commands")
 
     epl2_lines = [
         "N",
@@ -91,11 +91,15 @@ async def print_label(req: PrintRequest):
         *lo_commands,
         "P1",
     ]
-    payload = "\r\n".join(epl2_lines) + "\r\n"
+    payload_bytes = ("\r\n".join(epl2_lines) + "\r\n").encode("ascii")
+    print(f"Generated {len(lo_commands)} LO commands, {len(payload_bytes)} bytes")
 
     try:
         with open(PRINTER_PATH, "wb") as printer:
-            printer.write(payload.encode("ascii"))
+            for offset in range(0, len(payload_bytes), 1024):
+                printer.write(payload_bytes[offset:offset + 1024])
+                printer.flush()
+                time.sleep(0.01)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -150,25 +150,42 @@ export default function BigText() {
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
 
-  // Track container width to compute display scale
+  // Handle window/container resize — uses contentRect which excludes padding
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
-      const w = entries[0].contentRect.width;
-      setDisplayScale(w / labelW);
+      const { width, height } = entries[0].contentRect;
+      setDisplayScale(Math.min(width / labelW, height / labelH));
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [labelW]);
+  }, [labelW, labelH]);
 
   // Re-render canvas on any drawing input change
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
     canvas.width = labelW;
     canvas.height = labelH;
-    renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing);
+
+    // Compute display scale synchronously so it matches the new label size
+    // immediately — getBoundingClientRect() is border-box, subtract 48px (24px padding × 2)
+    const rect = container.getBoundingClientRect();
+    const availW = Math.max(rect.width - 48, 1);
+    const availH = Math.max(rect.height - 48, 1);
+    setDisplayScale(Math.min(availW / labelW, availH / labelH));
+
+    // Await font load before measuring/drawing to avoid stale glyph metrics
+    let cancelled = false;
+    const fontSpec = `${bold ? 'bold ' : ''}40px "${font}"`;
+    document.fonts.load(fontSpec).then(() => {
+      if (cancelled) return;
+      renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing);
+    });
+    return () => { cancelled = true; };
   }, [text, font, bold, hAlign, vAlign, letterSpacing, labelW, labelH]);
 
   const handlePrint = useCallback(async () => {

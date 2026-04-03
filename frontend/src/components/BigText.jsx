@@ -33,19 +33,19 @@ function drawLine(ctx, text, x, y, letterSpacing) {
   }
 }
 
-function applyFont(ctx, size, font) {
-  ctx.font = `${size}px "${font}"`;
+function applyFont(ctx, size, font, bold) {
+  ctx.font = `${bold ? 'bold ' : ''}${size}px "${font}"`;
 }
 
 /** Binary-search the largest font size where all lines fit within maxW × maxH. */
-function fitLines(ctx, lines, font, letterSpacing, maxW, maxH) {
+function fitLines(ctx, lines, font, bold, letterSpacing, maxW, maxH) {
   let lo = 4;
   let hi = 2000;
   let best = null;
 
   while (lo <= hi) {
     const size = Math.floor((lo + hi) / 2);
-    applyFont(ctx, size, font);
+    applyFont(ctx, size, font, bold);
 
     const lineH = size * 1.15;
     const totalH = lineH * lines.length;
@@ -73,18 +73,18 @@ function splitWords(words, numLines) {
 }
 
 /** Find the best font size + layout for the given text. */
-function fitText(ctx, text, canvasW, canvasH, font, letterSpacing) {
+function fitText(ctx, text, canvasW, canvasH, font, bold, letterSpacing) {
   const maxW = canvasW - PAD * 2;
   const maxH = canvasH - PAD * 2;
   const words = text.trim().split(/\s+/);
   if (!words[0]) return null;
 
-  let best = fitLines(ctx, [text.trim()], font, letterSpacing, maxW, maxH);
+  let best = fitLines(ctx, [text.trim()], font, bold, letterSpacing, maxW, maxH);
 
   if (words.length > 1) {
     for (let n = 2; n <= words.length; n++) {
       const lines = splitWords(words, n);
-      const result = fitLines(ctx, lines, font, letterSpacing, maxW, maxH);
+      const result = fitLines(ctx, lines, font, bold, letterSpacing, maxW, maxH);
       if (result && (!best || result.coverage > best.coverage)) {
         best = result;
       }
@@ -94,7 +94,7 @@ function fitText(ctx, text, canvasW, canvasH, font, letterSpacing) {
   return best;
 }
 
-function renderCanvas(canvas, text, font, hAlign, vAlign, letterSpacing) {
+function renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
   const H = canvas.height;
@@ -104,10 +104,10 @@ function renderCanvas(canvas, text, font, hAlign, vAlign, letterSpacing) {
 
   if (!text.trim()) return;
 
-  const fit = fitText(ctx, text, W, H, font, letterSpacing);
+  const fit = fitText(ctx, text, W, H, font, bold, letterSpacing);
   if (!fit) return;
 
-  applyFont(ctx, fit.size, font);
+  applyFont(ctx, fit.size, font, bold);
   ctx.fillStyle = 'black';
   ctx.textBaseline = 'top';
 
@@ -136,6 +136,7 @@ export default function BigText() {
 
   const [text, setText] = useState('');
   const [font, setFont] = useState('Impact');
+  const [bold, setBold] = useState(true);
   const [hAlign, setHAlign] = useState('center');
   const [vAlign, setVAlign] = useState('middle');
   const [letterSpacing, setLetterSpacing] = useState(0);
@@ -167,8 +168,8 @@ export default function BigText() {
     if (!canvas) return;
     canvas.width = labelW;
     canvas.height = labelH;
-    renderCanvas(canvas, text, font, hAlign, vAlign, letterSpacing);
-  }, [text, font, hAlign, vAlign, letterSpacing, labelW, labelH]);
+    renderCanvas(canvas, text, font, bold, hAlign, vAlign, letterSpacing);
+  }, [text, font, bold, hAlign, vAlign, letterSpacing, labelW, labelH]);
 
   const handlePrint = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -228,6 +229,14 @@ export default function BigText() {
             ))}
           </select>
         </label>
+
+        <div className="control-group">
+          <span>Weight</span>
+          <div className="btn-group">
+            <button className={bold ? 'active' : ''} onClick={() => setBold(true)}>Bold</button>
+            <button className={!bold ? 'active' : ''} onClick={() => setBold(false)}>Regular</button>
+          </div>
+        </div>
 
         <div className="control-group">
           <span>Horizontal</span>

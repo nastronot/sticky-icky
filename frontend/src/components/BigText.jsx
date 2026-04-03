@@ -264,11 +264,18 @@ export default function BigText() {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const gwBytes = encodeGW(imageData.data, canvas.width, canvas.height);
 
-    // Append P1\r\n to trigger print
+    // EPL2 setup commands + print trigger
+    const setup = new TextEncoder().encode(
+      `q${labelW}\r\n` +
+      `Q${labelH},25\r\n` +
+      `D15\r\n` +
+      `S2\r\n`
+    );
     const p1 = new TextEncoder().encode('P1\r\n');
-    const payload = new Uint8Array(gwBytes.length + p1.length);
-    payload.set(gwBytes, 0);
-    payload.set(p1, gwBytes.length);
+    const payload = new Uint8Array(setup.length + gwBytes.length + p1.length);
+    payload.set(setup, 0);
+    payload.set(gwBytes, setup.length);
+    payload.set(p1, setup.length + gwBytes.length);
 
     try {
       const res = await fetch('http://localhost:8765/print', {
@@ -285,7 +292,7 @@ export default function BigText() {
     } catch (err) {
       setPrintStatus({ error: err.message });
     }
-  }, []);
+  }, [labelW, labelH]);
 
   const handlePresetChange = (e) => {
     setPresetIdx(Number(e.target.value));

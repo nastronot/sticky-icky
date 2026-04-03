@@ -51,8 +51,24 @@ Spec lives at `~/dev/thermal/spec.md`.
 Canvas (HTML5 Canvas / OffscreenCanvas)
   → flatten to 1-bit bitmap (W × H pixels)
   → pack to 1bpp row-major bytes
+  → prepend EPL2 setup commands (label size, darkness, speed)
   → build EPL2 GW command
+  → append P1 print trigger
   → POST to backend → write to /dev/usb/lp0
+```
+
+### EPL2 payload format
+
+The full payload sent to the printer:
+
+```
+q{labelW}\r\n                              — label width in dots
+Q{labelH},25\r\n                           — label height in dots + 25-dot gap
+D15\r\n                                    — max darkness (0–15)
+S2\r\n                                     — medium speed (1–4)
+GW{x},{y},{width_bytes},{height}\r\n       — graphics write header
+{binary bitmap data}                       — 1bpp row-major, MSB first
+P1\r\n                                     — print 1 copy
 ```
 
 ### EPL2 GW command format

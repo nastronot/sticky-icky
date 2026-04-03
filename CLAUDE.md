@@ -122,7 +122,8 @@ sudo bash -c 'cat /dev/usb/lp0 & echo -e "UQ\r\n" > /dev/usb/lp0; sleep 2; kill 
 - Dithering must be applied before encoding — the printer has no grayscale capability whatsoever
 - EPL2 `GW` writes to the image buffer but does not print — follow with `P1\r\n` to trigger print
 - Canvas font rendering: always `await document.fonts.load(fontSpec)` before measuring or drawing — skipping this causes `measureText` to return stale metrics for the previous font, producing a mis-sized render that corrects itself one frame later
-- Canvas display scale: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — relying solely on `ResizeObserver` introduces a one-frame lag when label size changes because the observer fires after React has already painted the new canvas dimensions. Use `Math.min(availW / labelW, availH / labelH)` (fit both axes) rather than width-only.
+- Canvas display scale: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — relying solely on `ResizeObserver` introduces a one-frame lag when label size changes because the observer fires after React has already painted the new canvas dimensions. Use `Math.min(availW / labelW, availH / labelH)` (fit both axes) rather than width-only. Guard: if `getBoundingClientRect()` returns zero width or height (layout not yet run on initial mount), skip the synchronous set and let `ResizeObserver` handle the first-paint scale instead.
+- Canvas vertical centering: use `textBaseline = 'top'` and `startY = (H - totalH) / 2` where `totalH = lineH * lines.length`. This is correct — do not adjust for descenders or use `textBaseline = 'alphabetic'`, which would shift text upward.
 
 ---
 

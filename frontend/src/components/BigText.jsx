@@ -172,11 +172,14 @@ export default function BigText() {
     canvas.height = labelH;
 
     // Compute display scale synchronously so it matches the new label size
-    // immediately — getBoundingClientRect() is border-box, subtract 48px (24px padding × 2)
+    // immediately — getBoundingClientRect() is border-box, subtract 48px (24px padding × 2).
+    // Guard: if layout hasn't run yet, rect is zero — skip and let ResizeObserver handle it.
     const rect = container.getBoundingClientRect();
-    const availW = Math.max(rect.width - 48, 1);
-    const availH = Math.max(rect.height - 48, 1);
-    setDisplayScale(Math.min(availW / labelW, availH / labelH));
+    if (rect.width > 0 && rect.height > 0) {
+      const availW = Math.max(rect.width - 48, 1);
+      const availH = Math.max(rect.height - 48, 1);
+      setDisplayScale(Math.min(availW / labelW, availH / labelH));
+    }
 
     // Await font load before measuring/drawing to avoid stale glyph metrics
     let cancelled = false;

@@ -39,7 +39,7 @@ Spec lives at `~/dev/thermal/spec.md`.
 | Print width      | 832 dots (4.09")              |
 | Image buffer     | 245K                          |
 | Max label length | ~2400 dots (~11.8")           |
-| Bitmap command   | `GW` (graphics write, binary) |
+| Bitmap command   | `LO` (line draw — GW broken on V4.29) |
 
 **There is no ZPL support. Do not use `^GF`, `^XA`, or any ZPL syntax.**
 
@@ -51,15 +51,14 @@ Spec lives at `~/dev/thermal/spec.md`.
 Canvas (HTML5 Canvas / OffscreenCanvas)
   → flatten to 1-bit bitmap (W × H pixels)
   → pack to 1bpp row-major bytes
-  → prepend EPL2 setup commands (label size, darkness, speed)
-  → build EPL2 GW command
-  → append P1 print trigger
-  → POST to backend → write to /dev/usb/lp0
+  → POST bitmap + dimensions as JSON to backend
+  → backend converts to EPL2 LO commands
+  → write to /dev/usb/lp0
 ```
 
 ### EPL2 payload format
 
-The full payload sent to the printer:
+The backend assembles and sends this to the printer:
 
 ```
 N\r\n                                      — clear image buffer
@@ -67,21 +66,12 @@ q{labelW}\r\n                              — label width in dots
 Q{labelH},25\r\n                           — label height in dots + 25-dot gap
 D15\r\n                                    — max darkness (0–15)
 S2\r\n                                     — medium speed (1–4)
-GW{x},{y},{width_bytes},{height}\r\n       — graphics write header
-{binary bitmap data}                       — 1bpp row-major, MSB first
+LO{x},{y},{width},1\r\n                    — one per contiguous black pixel run per row
+... (repeated for every run in every row)
 P1\r\n                                     — print 1 copy
 ```
 
-### EPL2 GW command format
-
-```
-GW{x},{y},{width_bytes},{height}\r\n{binary bitmap data}
-```
-
-- `x`, `y`: origin in dots (usually 0,0)
-- `width_bytes`: pixel width / 8 (must be integer — pad width to multiple of 8)
-- `height`: pixel height in dots
-- Binary data: row-major, MSB first, 1=black 0=white
+**Why LO instead of GW?** The `GW` (Direct Graphic Write) and `LE` commands are non-functional on our V4.29 UPS-branded firmware — they produce blank labels. `LO` (Line Draw) works reliably. The backend scans the 1bpp bitmap row by row and emits one `LO{x},{y},{run_length},1` command per contiguous run of black pixels.
 
 ---
 
@@ -124,7 +114,7 @@ sudo bash -c 'cat /dev/usb/lp0 & echo -e "UQ\r\n" > /dev/usb/lp0; sleep 2; kill 
 | Frontend      | React                                 |
 | Canvas        | HTML5 Canvas API + Konva.js           |
 | Dithering     | `image-q` or custom JS                |
-| EPL2 encoding | Custom utility — bitmap → `GW` binary |
+| EPL2 encoding | Backend — bitmap → `LO` commands       |
 | Backend       | FastAPI (Python)                      |
 | USB write     | `open('/dev/usb/lp0', 'wb')`          |
 
@@ -132,12 +122,12 @@ sudo bash -c 'cat /dev/usb/lp0 & echo -e "UQ\r\n" > /dev/usb/lp0; sleep 2; kill 
 
 ## Known Gotchas
 
-- Width must be padded to a multiple of 8 bits before packing — `GW` width_bytes must be an integer
+- GW and LE commands are non-functional on V4.29 UPS-branded firmware — do not use. All raster printing goes through LO commands via the backend.
 - 245K image buffer is the hard ceiling for a single print — an 832×2400 1-bit image is ~249KB, right at the limit; test large prints early
 - `/dev/usb/lp0` requires write permission — either run backend as root or add user to `lp` group (`sudo usermod -aG lp matt`)
 - CUPS raw queue exists (`ZebraLP2844`) but the backend bypasses it entirely — direct device write only
 - Dithering must be applied before encoding — the printer has no grayscale capability whatsoever
-- EPL2 `GW` writes to the image buffer but does not print — follow with `P1\r\n` to trigger print
+- EPL2 `LO` draws lines but does not print — follow with `P1\r\n` to trigger print
 - Canvas font rendering: always `await document.fonts.load(fontSpec)` before measuring or drawing — skipping this causes `measureText` to return stale metrics for the previous font, producing a mis-sized render that corrects itself one frame later
 - Canvas display scale: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — relying solely on `ResizeObserver` introduces a one-frame lag when label size changes because the observer fires after React has already painted the new canvas dimensions. Use `Math.min(availW / labelW, availH / labelH)` (fit both axes) rather than width-only. Guard: if `getBoundingClientRect()` returns zero width or height (layout not yet run on initial mount), skip the synchronous set and let `ResizeObserver` handle the first-paint scale instead. Initialize `displayScale` to `0` (not `1`) — the container is flex-sized independently of the canvas, so the observer fires on first paint with valid dimensions and the canvas is merely invisible (0×0 CSS) for one frame rather than flashing at full 832px width.
 - Canvas text sizing and centering: use `textBaseline = 'alphabetic'` with `actualBoundingBoxAscent` / `actualBoundingBoxDescent` from `ctx.measureText()` to get the true painted glyph height — the `size * 1.15` heuristic underestimates heavy fonts like Arial Black. `lineH = maxAscent + maxDescent`, `totalH = lineH * lines.length + gap * (lines.length - 1)`. Position each line's baseline at `startY + i * (lineH + gap) + maxAscent`.

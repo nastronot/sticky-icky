@@ -1,18 +1,17 @@
 /**
- * Encode a dithered RGBA image as an EPL2 GW command.
+ * Pack RGBA image data to 1bpp row-major bitmap and return a JSON-ready
+ * payload for the LO-based print endpoint.
  *
  * @param {Uint8ClampedArray} imageData - RGBA pixel data (Canvas ImageData.data)
  * @param {number} width - Image width in pixels
  * @param {number} height - Image height in pixels
- * @returns {Uint8Array} Complete GW command bytes (header + bitmap)
+ * @param {number} labelW - Label width in dots (for EPL2 q command)
+ * @param {number} labelH - Label height in dots (for EPL2 Q command)
+ * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number }}
  */
-export function encodeGW(imageData, width, height) {
+export function encodePrintPayload(imageData, width, height, labelW, labelH) {
   const paddedWidth = Math.ceil(width / 8) * 8;
   const widthBytes = paddedWidth / 8;
-
-  const header = new TextEncoder().encode(
-    `GW0,0,${widthBytes},${height}\r\n`
-  );
 
   const bitmap = new Uint8Array(widthBytes * height);
 
@@ -33,8 +32,12 @@ export function encodeGW(imageData, width, height) {
     }
   }
 
-  const result = new Uint8Array(header.length + bitmap.length);
-  result.set(header, 0);
-  result.set(bitmap, header.length);
-  return result;
+  // Convert to base64
+  let binary = '';
+  for (let i = 0; i < bitmap.length; i++) {
+    binary += String.fromCharCode(bitmap[i]);
+  }
+  const base64 = btoa(binary);
+
+  return { bitmap: base64, width: paddedWidth, height, labelW, labelH };
 }

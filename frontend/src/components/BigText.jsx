@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { encodeGW } from '../utils/epl2.js';
+import { encodePrintPayload } from '../utils/epl2.js';
 import './BigText.css';
 
 const PRESETS = [
@@ -262,27 +262,13 @@ export default function BigText() {
 
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const gwBytes = encodeGW(imageData.data, canvas.width, canvas.height);
-
-    // EPL2 setup commands + print trigger
-    const setup = new TextEncoder().encode(
-      `N\r\n` +
-      `q${labelW}\r\n` +
-      `Q${labelH},25\r\n` +
-      `D15\r\n` +
-      `S2\r\n`
-    );
-    const p1 = new TextEncoder().encode('P1\r\n');
-    const payload = new Uint8Array(setup.length + gwBytes.length + p1.length);
-    payload.set(setup, 0);
-    payload.set(gwBytes, setup.length);
-    payload.set(p1, setup.length + gwBytes.length);
+    const body = encodePrintPayload(imageData.data, canvas.width, canvas.height, labelW, labelH);
 
     try {
       const res = await fetch('http://localhost:8765/print', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: payload,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (res.ok) {

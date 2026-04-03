@@ -62,6 +62,7 @@ Canvas (HTML5 Canvas / OffscreenCanvas)
 The full payload sent to the printer:
 
 ```
+N\r\n                                      — clear image buffer
 q{labelW}\r\n                              — label width in dots
 Q{labelH},25\r\n                           — label height in dots + 25-dot gap
 D15\r\n                                    — max darkness (0–15)

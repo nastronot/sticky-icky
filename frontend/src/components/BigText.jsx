@@ -266,6 +266,7 @@ export default function BigText() {
 
     // EPL2 setup commands + print trigger
     const setup = new TextEncoder().encode(
+      `N\r\n` +
       `q${labelW}\r\n` +
       `Q${labelH},25\r\n` +
       `D15\r\n` +

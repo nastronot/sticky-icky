@@ -160,6 +160,14 @@
 
 /* Canvas area --------------------------------------------------------------- */
 
+.bigtext-canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+
 .bigtext-canvas-wrap {
   flex: 1;
   display: flex;
@@ -172,4 +180,116 @@
 .bigtext-canvas-wrap canvas {
   display: block;
   box-shadow: 0 0 0 1px #555, 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Density panel ------------------------------------------------------------- */
+
+.density-panel {
+  position: relative;
+  background: #242424;
+  border-top: 1px solid #333;
+  max-height: 0;
+  overflow: visible;
+  transition: max-height 0.25s ease;
+}
+
+.density-panel.open {
+  max-height: 160px;
+}
+
+.density-tab {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 14px;
+  background: #242424;
+  border: 1px solid #333;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: #ccc;
+  font-size: 11px;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.density-tab:hover {
+  color: #fff;
+  background: #2e2e2e;
+}
+
+.density-panel.open .density-tab {
+  color: #fff;
+}
+
+.density-tab-chevron {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.density-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 20px 14px;
+  opacity: 0;
+  transition: opacity 0.2s ease 0.05s;
+}
+
+.density-panel.open .density-panel-body {
+  opacity: 1;
+}
+
+.density-warning {
+  margin: 0;
+  color: #f2b84b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.density-ok {
+  margin: 0;
+  color: #6fcf97;
+  font-size: 12px;
+}
+
+.density-readout {
+  margin: 0;
+  color: #aaa;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.density-readout .density-threshold {
+  color: #777;
+}
+
+.density-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.density-slider > span {
+  color: #999;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.density-slider > span em {
+  font-style: normal;
+  color: #e0e0e0;
+  margin-left: 4px;
+}
+
+.density-slider input[type='range'] {
+  width: 100%;
+  background: #1a1a1a;
+  cursor: pointer;
 }

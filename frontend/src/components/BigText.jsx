@@ -136,6 +136,55 @@ function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, i
   return best;
 }
 
+// ── Density helpers ───────────────────────────────────────────────────────────
+
+const DENSITY_THRESHOLD = 400;
+
+// Standard 8×8 Bayer ordered-dither matrix (values 0..63).
+const BAYER_8 = [
+   0, 32,  8, 40,  2, 34, 10, 42,
+  48, 16, 56, 24, 50, 18, 58, 26,
+  12, 44,  4, 36, 14, 46,  6, 38,
+  60, 28, 52, 20, 62, 30, 54, 22,
+   3, 35, 11, 43,  1, 33,  9, 41,
+  51, 19, 59, 27, 49, 17, 57, 25,
+  15, 47,  7, 39, 13, 45,  5, 37,
+  63, 31, 55, 23, 61, 29, 53, 21,
+];
+
+/** Apply an ordered Bayer dither in-place: flip black pixels to white where the
+ *  matrix threshold (normalized 0..1) is below `amount` (0..1). At 0 nothing
+ *  changes; at 1 every black pixel is flipped. */
+function applyOrderedDither(data, width, height, amount) {
+  if (amount <= 0) return;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (data[i] >= 128) continue; // only act on black pixels
+      const t = (BAYER_8[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
+      if (t < amount) {
+        data[i] = 255;
+        data[i + 1] = 255;
+        data[i + 2] = 255;
+      }
+    }
+  }
+}
+
+/** Return the maximum count of black pixels in any single row. */
+function peakRowDensity(data, width, height) {
+  let peak = 0;
+  for (let y = 0; y < height; y++) {
+    let count = 0;
+    const rowOff = y * width * 4;
+    for (let x = 0; x < width; x++) {
+      if (data[rowOff + x * 4] < 128) count++;
+    }
+    if (count > peak) peak = count;
+  }
+  return peak;
+}
+
 function renderCanvas(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
@@ -207,6 +256,9 @@ export default function BigText() {
   const [smallCaps, setSmallCaps] = useState(false);
   const [italic, setItalic] = useState(false);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
+  const [densityDither, setDensityDither] = useState(0); // 0..100 — slider %
+  const [peakDensity, setPeakDensity] = useState(0);
+  const [panelManuallyOpen, setPanelManuallyOpen] = useState(false);
 
   const preset = PRESETS[presetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
@@ -251,9 +303,21 @@ export default function BigText() {
     document.fonts.load(fontSpec).then(() => {
       if (cancelled) return;
       renderCanvas(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing);
+
+      // Post-render: optional density dither + density measurement.
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      if (densityDither > 0) {
+        applyOrderedDither(imageData.data, canvas.width, canvas.height, densityDither / 100);
+        ctx.putImageData(imageData, 0, 0);
+      }
+      setPeakDensity(peakRowDensity(imageData.data, canvas.width, canvas.height));
     });
     return () => { cancelled = true; };
-  }, [displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, labelW, labelH]);
+  }, [displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, labelW, labelH, densityDither]);
+
+  const densityWarning = peakDensity > DENSITY_THRESHOLD;
+  const panelOpen = densityWarning || panelManuallyOpen;
 
   const handlePrint = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -415,16 +479,56 @@ export default function BigText() {
         )}
       </aside>
 
-      <div className="bigtext-canvas-wrap" ref={containerRef}>
-        <canvas
-          ref={canvasRef}
-          width={labelW}
-          height={labelH}
-          style={{
-            width: labelW * displayScale,
-            height: labelH * displayScale,
-          }}
-        />
+      <div className="bigtext-canvas-area">
+        <div className="bigtext-canvas-wrap" ref={containerRef}>
+          <canvas
+            ref={canvasRef}
+            width={labelW}
+            height={labelH}
+            style={{
+              width: labelW * displayScale,
+              height: labelH * displayScale,
+            }}
+          />
+        </div>
+
+        <div className={`density-panel ${panelOpen ? 'open' : ''}`}>
+          <button
+            type="button"
+            className="density-tab"
+            onClick={() => setPanelManuallyOpen(o => !o)}
+            aria-label={panelOpen ? 'Hide density panel' : 'Show density panel'}
+          >
+            <span className="density-tab-label">
+              {densityWarning ? '⚠ Density' : 'Density'}
+            </span>
+            <span className="density-tab-chevron">{panelOpen ? '▼' : '▲'}</span>
+          </button>
+          <div className="density-panel-body">
+            {densityWarning ? (
+              <p className="density-warning">
+                ⚠ Dense rows detected — print may fail. Use density reduction slider.
+              </p>
+            ) : (
+              <p className="density-ok">Row density within safe range.</p>
+            )}
+            <p className="density-readout">
+              Peak: {peakDensity}/{labelW} pixels
+              <span className="density-threshold"> (threshold {DENSITY_THRESHOLD})</span>
+            </p>
+            <label className="density-slider">
+              <span>Density reduction <em>{densityDither}%</em></span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={densityDither}
+                onChange={e => setDensityDither(Number(e.target.value))}
+              />
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   );

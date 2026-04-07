@@ -2,7 +2,7 @@
 
 ## Overview
 
-A browser-based design tool for composing and printing sticker art to a Zebra LP2844 thermal printer. Output is rasterized and sent as EPL2 `LO` (line draw) commands to the printer via USB (`/dev/usb/lp0`) through a local backend proxy.
+A browser-based design tool for composing and printing sticker art to a Zebra LP2844 thermal printer. Output is rasterized and sent as an EPL2 `GW` (Direct Graphic Write) command over serial (`/dev/ttyUSB0` @ 9600 8N1) through a local backend proxy.
 
 **Confirmed hardware specs (via `UQ` status query):**
 
@@ -122,19 +122,19 @@ Critical for image quality on thermal.
 ```
 Canvas (HTML5 Canvas / OffscreenCanvas)
   → flatten to 1-bit bitmap (W × H pixels)
-  → pack to 1bpp row-major bytes, base64 encode
+  → pack to 1bpp row-major bytes (1=black, 0=white), base64 encode
   → POST JSON { bitmap, width, height, labelW, labelH } to backend
-  → backend scans bitmap, emits EPL2 LO commands per black pixel run
-  → write to /dev/usb/lp0
+  → backend inverts bytes (GW expects 0=black, 1=white)
+  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial
 ```
 
 ### Backend (FastAPI / Python)
 
 - Accepts POST `/print` with JSON body containing base64 bitmap + dimensions
-- Decodes bitmap, scans rows for contiguous black runs, emits `LO{x},{y},{width},1` per run
-- Wraps with EPL2 setup (`N`, `q`, `Q`, `D15`, `S2`) and print trigger (`P1`)
-- Writes assembled EPL2 to `/dev/usb/lp0`
-- Returns print status + LO command count
+- Decodes bitmap, XORs every byte with `0xFF` to invert polarity for `GW`
+- Wraps with EPL2 setup (`N`, `q`, `Q`, `D15`, `S2`), `GW0,0,{width_bytes},{height}\r\n` followed immediately by the raw inverted bitmap bytes, then `P1`
+- Writes assembled EPL2 to `/dev/ttyUSB0` via `pyserial` (9600 8N1)
+- Returns print status + payload byte count
 
 ---
 
@@ -145,9 +145,9 @@ Canvas (HTML5 Canvas / OffscreenCanvas)
 | Frontend         | React                               | Canvas manipulation, state management |
 | Canvas rendering | HTML5 Canvas API + Konva.js         | Object model, transforms, export      |
 | Dithering        | `image-q` or custom                 | JS dither library                     |
-| EPL2 encoding    | Backend (Python)                    | Bitmap → `LO` line draw commands      |
-| Backend          | FastAPI (Python) or Express (Node)  | Single endpoint: POST /print          |
-| USB write        | Python `open('/dev/usb/lp0', 'wb')` | Direct device write                   |
+| EPL2 encoding    | Backend (Python)                    | Bitmap → `GW` Direct Graphic Write (bytes inverted) |
+| Backend          | FastAPI (Python) + pyserial         | Single endpoint: POST /print          |
+| Printer write    | Python `serial.Serial('/dev/ttyUSB0', 9600, 8N1)` | Direct serial write       |
 
 ---
 

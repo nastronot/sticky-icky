@@ -33,13 +33,14 @@ Spec lives at `~/dev/thermal/spec.md`.
 | Property         | Value                         |
 | ---------------- | ----------------------------- |
 | Printer          | Zebra LP2844                  |
-| USB device       | `/dev/usb/lp0`                |
+| Serial device    | `/dev/ttyUSB0` @ 9600 8N1 (primary print path) |
+| USB device       | `/dev/usb/lp0` (reference only — GW broken on this transport) |
 | Firmware         | EPL2 only — V4.29. No ZPL.    |
 | Resolution       | 203 DPI                       |
 | Print width      | 832 dots (4.09")              |
 | Image buffer     | 245K                          |
 | Max label length | ~2400 dots (~11.8")           |
-| Bitmap command   | `LO` (line draw — GW broken on V4.29) |
+| Bitmap command   | `GW` (Direct Graphic Write) over serial |
 
 **There is no ZPL support. Do not use `^GF`, `^XA`, or any ZPL syntax.**
 
@@ -50,28 +51,31 @@ Spec lives at `~/dev/thermal/spec.md`.
 ```
 Canvas (HTML5 Canvas / OffscreenCanvas)
   → flatten to 1-bit bitmap (W × H pixels)
-  → pack to 1bpp row-major bytes
+  → pack to 1bpp row-major bytes (1=black, 0=white), base64 encode
   → POST bitmap + dimensions as JSON to backend
-  → backend converts to EPL2 LO commands
-  → write to /dev/usb/lp0
+  → backend inverts bytes (GW expects 0=black, 1=white)
+  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 9600 8N1
 ```
 
 ### EPL2 payload format
 
-The backend assembles and sends this to the printer:
+The backend assembles and sends this to the printer over serial:
 
 ```
+\r\n                                       — wake / line sync
 N\r\n                                      — clear image buffer
 q{labelW}\r\n                              — label width in dots
-Q{labelH},25\r\n                           — label height in dots + 25-dot gap
+Q{labelH},21\r\n                           — label height in dots + 21-dot gap
 D15\r\n                                    — max darkness (0–15)
 S2\r\n                                     — medium speed (1–4)
-LO{x},{y},{width},1\r\n                    — one per contiguous black pixel run per row
-... (repeated for every run in every row)
+GW0,0,{width_bytes},{height}\r\n           — Direct Graphic Write at (0,0)
+{raw inverted bitmap bytes}                — width_bytes * height bytes, NO separator
 P1\r\n                                     — print 1 copy
 ```
 
-**Why LO instead of GW?** The `GW` (Direct Graphic Write) and `LE` commands are non-functional on our V4.29 UPS-branded firmware — they produce blank labels. `LO` (Line Draw) works reliably. The backend scans the 1bpp bitmap row by row and emits one `LO{x},{y},{run_length},1` command per contiguous run of black pixels.
+**Why GW over serial?** `GW` (Direct Graphic Write) is non-functional over USB on our V4.29 UPS-branded firmware but works reliably over serial. `LO` (Line Draw) works over USB but explodes in command count for dense raster art and runs into payload size limits. Serial + GW is the primary print path. The binary bitmap data follows the `GW` command line immediately after its `\r\n` with no separator.
+
+**GW bit polarity:** `GW` expects `0 = black, 1 = white`. The frontend packs the bitmap as `1 = black, 0 = white`, so the backend XORs every byte with `0xFF` before sending.
 
 ---
 
@@ -114,18 +118,20 @@ sudo bash -c 'cat /dev/usb/lp0 & echo -e "UQ\r\n" > /dev/usb/lp0; sleep 2; kill 
 | Frontend      | React                                 |
 | Canvas        | HTML5 Canvas API + Konva.js           |
 | Dithering     | `image-q` or custom JS                |
-| EPL2 encoding | Backend — bitmap → `LO` commands       |
-| Backend       | FastAPI (Python)                      |
-| USB write     | `open('/dev/usb/lp0', 'wb')`          |
+| EPL2 encoding | Backend — bitmap → `GW` payload (bytes inverted) |
+| Backend       | FastAPI (Python) + pyserial           |
+| Printer write | `serial.Serial('/dev/ttyUSB0', 9600, 8N1)` |
 
 ---
 
 ## Known Gotchas
 
-- GW and LE commands are non-functional on V4.29 UPS-branded firmware — do not use. All raster printing goes through LO commands via the backend.
+- `GW` works over **serial** (`/dev/ttyUSB0` @ 9600 8N1) but NOT over USB (`/dev/usb/lp0`) on V4.29 UPS-branded firmware — over USB it produces blank labels. Serial + GW is the primary print path. `LO` is the fallback that works over USB but has density / payload limits and is no longer used by the backend.
+- `GW` bit polarity is inverted from the frontend: GW expects `0 = black, 1 = white`. The frontend packs `1 = black, 0 = white`, so the backend XORs every byte with `0xFF` before sending. Do not change frontend packing — invert in the backend.
+- The binary bitmap for `GW` follows the `GW` command line immediately after its `\r\n` with no separator. Any extra bytes between the command and the data will desync the printer.
 - 245K image buffer is the hard ceiling for a single print — an 832×2400 1-bit image is ~249KB, right at the limit; test large prints early
-- `/dev/usb/lp0` requires write permission — either run backend as root or add user to `lp` group (`sudo usermod -aG lp matt`)
-- CUPS raw queue exists (`ZebraLP2844`) but the backend bypasses it entirely — direct device write only
+- `/dev/ttyUSB0` requires write permission — add user to `dialout` (or `uucp`) group, e.g. `sudo usermod -aG dialout matt`. `/dev/usb/lp0` (legacy) requires the `lp` group.
+- CUPS raw queue exists (`ZebraLP2844`) but the backend bypasses it entirely — direct serial write only
 - Dithering must be applied before encoding — the printer has no grayscale capability whatsoever
 - EPL2 `LO` draws lines but does not print — follow with `P1\r\n` to trigger print
 - Canvas font rendering: always `await document.fonts.load(fontSpec)` before measuring or drawing — skipping this causes `measureText` to return stale metrics for the previous font, producing a mis-sized render that corrects itself one frame later

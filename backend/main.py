@@ -1,5 +1,6 @@
 import base64
 
+import serial
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -17,7 +18,8 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-PRINTER_PATH = "/dev/usb/lp0"
+SERIAL_PORT = "/dev/ttyUSB0"
+BAUD_RATE = 9600
 
 
 class PrintRequest(BaseModel):
@@ -26,38 +28,6 @@ class PrintRequest(BaseModel):
     height: int  # pixel height
     labelW: int  # label width in dots
     labelH: int  # label height in dots
-
-
-def bitmap_to_lo_commands(bitmap_bytes: bytes, width: int, height: int) -> list[str]:
-    """Scan a 1bpp row-major bitmap and emit LO commands for each contiguous run of black pixels."""
-    width_bytes = width // 8
-    commands = []
-
-    for y in range(height):
-        row_offset = y * width_bytes
-        run_start = None
-
-        for byte_idx in range(width_bytes):
-            byte_val = bitmap_bytes[row_offset + byte_idx]
-            for bit in range(8):
-                x = byte_idx * 8 + bit
-                is_black = (byte_val >> (7 - bit)) & 1
-
-                if is_black:
-                    if run_start is None:
-                        run_start = x
-                else:
-                    if run_start is not None:
-                        run_length = x - run_start
-                        commands.append(f"LO{run_start},{y},{run_length},1")
-                        run_start = None
-
-        # Close any run that extends to the end of the row
-        if run_start is not None:
-            run_length = width - run_start
-            commands.append(f"LO{run_start},{y},{run_length},1")
-
-    return commands
 
 
 @app.get("/health")
@@ -72,31 +42,50 @@ async def print_label(req: PrintRequest):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 bitmap data")
 
-    expected_size = (req.width // 8) * req.height
+    width_bytes = req.width // 8
+    expected_size = width_bytes * req.height
     if len(bitmap_bytes) != expected_size:
         raise HTTPException(
             status_code=400,
             detail=f"Bitmap size mismatch: got {len(bitmap_bytes)}, expected {expected_size}",
         )
 
-    lo_commands = bitmap_to_lo_commands(bitmap_bytes, req.width, req.height)
+    # GW expects 0=black, 1=white. Frontend packs 1=black, 0=white. Invert.
+    inverted = bytes(b ^ 0xFF for b in bitmap_bytes)
 
-    epl2_lines = [
-        "N",
-        f"q{req.labelW}",
-        f"Q{req.labelH},25",
-        "D15",
-        "S2",
-        *lo_commands,
-        "P1",
-    ]
-    payload_bytes = ("\n".join(epl2_lines) + "\n").encode("ascii")
-    print(f"Generated {len(lo_commands)} LO commands, {len(payload_bytes)} bytes")
+    header = (
+        "\r\n"
+        "N\r\n"
+        f"q{req.labelW}\r\n"
+        f"Q{req.labelH},21\r\n"
+        "D15\r\n"
+        "S2\r\n"
+        f"GW0,0,{width_bytes},{req.height}\r\n"
+    ).encode("ascii")
+    footer = b"P1\r\n"
+    payload_bytes = header + inverted + footer
+
+    print(
+        f"Print: {req.width}x{req.height}px ({width_bytes}x{req.height} bytes), "
+        f"label {req.labelW}x{req.labelH}, payload {len(payload_bytes)} bytes"
+    )
+
+    # Debug dump (now contains binary GW data)
+    with open("/tmp/last_print.epl", "wb") as f:
+        f.write(payload_bytes)
 
     try:
-        with open(PRINTER_PATH, "wb") as printer:
-            printer.write(payload_bytes)
+        with serial.Serial(
+            SERIAL_PORT,
+            baudrate=BAUD_RATE,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=2,
+        ) as ser:
+            ser.write(payload_bytes)
+            ser.flush()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {"status": "ok", "lo_commands": len(lo_commands)}
+    return {"status": "ok", "bytes": len(payload_bytes)}

@@ -138,7 +138,14 @@ function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, i
 
 // ── Density helpers ───────────────────────────────────────────────────────────
 
-const DENSITY_THRESHOLD = 400;
+/** Density threshold (max safe black pixels per row) given current print settings.
+ *  Higher darkness and higher speed both overdraw the head on dense rows, so the
+ *  threshold drops as either climbs. Floor at 250 so the warning doesn't become
+ *  permanent at the worst settings. */
+function computeDensityThreshold(darkness, speed) {
+  const raw = 500 * (1 - (darkness - 8) * 0.05) * (1 - (speed - 1) * 0.1);
+  return Math.max(250, Math.round(raw));
+}
 
 // Standard 8×8 Bayer ordered-dither matrix (values 0..63).
 const BAYER_8 = [
@@ -259,6 +266,8 @@ export default function BigText() {
   const [densityDither, setDensityDither] = useState(0); // 0..100 — slider %
   const [peakDensity, setPeakDensity] = useState(0);
   const [panelManuallyOpen, setPanelManuallyOpen] = useState(false);
+  const [darkness, setDarkness] = useState(12); // EPL2 D, 0–15
+  const [speed, setSpeed] = useState(1);        // EPL2 S, 1–4
 
   const preset = PRESETS[presetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
@@ -316,7 +325,8 @@ export default function BigText() {
     return () => { cancelled = true; };
   }, [displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, labelW, labelH, densityDither]);
 
-  const densityWarning = peakDensity > DENSITY_THRESHOLD;
+  const densityThreshold = computeDensityThreshold(darkness, speed);
+  const densityWarning = peakDensity > densityThreshold;
   const panelOpen = densityWarning || panelManuallyOpen;
 
   const handlePrint = useCallback(async () => {
@@ -326,7 +336,7 @@ export default function BigText() {
 
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const body = encodePrintPayload(imageData.data, canvas.width, canvas.height, labelW, labelH);
+    const body = encodePrintPayload(imageData.data, canvas.width, canvas.height, labelW, labelH, darkness, speed);
 
     try {
       const res = await fetch('http://localhost:8765/print', {
@@ -343,7 +353,7 @@ export default function BigText() {
     } catch (err) {
       setPrintStatus({ error: err.message });
     }
-  }, [labelW, labelH]);
+  }, [labelW, labelH, darkness, speed]);
 
   const handlePresetChange = (e) => {
     setPresetIdx(Number(e.target.value));
@@ -467,6 +477,30 @@ export default function BigText() {
           </div>
         )}
 
+        <label className="control-group">
+          <span>Darkness <em>{darkness}</em></span>
+          <input
+            type="range"
+            min={0}
+            max={15}
+            step={1}
+            value={darkness}
+            onChange={e => setDarkness(Number(e.target.value))}
+          />
+        </label>
+
+        <label className="control-group">
+          <span>Speed <em>{speed}</em></span>
+          <input
+            type="range"
+            min={1}
+            max={4}
+            step={1}
+            value={speed}
+            onChange={e => setSpeed(Number(e.target.value))}
+          />
+        </label>
+
         <button className="print-btn" onClick={handlePrint} disabled={printStatus === 'printing'}>
           {printStatus === 'printing' ? 'Printing…' : 'Print'}
         </button>
@@ -514,7 +548,7 @@ export default function BigText() {
             )}
             <p className="density-readout">
               Peak: {peakDensity}/{labelW} pixels
-              <span className="density-threshold"> (threshold {DENSITY_THRESHOLD})</span>
+              <span className="density-threshold"> (threshold {densityThreshold} @ D{darkness} S{speed})</span>
             </p>
             <label className="density-slider">
               <span>Density reduction <em>{densityDither}%</em></span>

@@ -2,7 +2,7 @@
 
 ## Overview
 
-A browser-based design tool for composing and printing sticker art to a Zebra LP2844 thermal printer. Output is rasterized and sent as an EPL2 `GW` (Direct Graphic Write) command over serial (`/dev/ttyUSB0` @ 9600 8N1) through a local backend proxy.
+A browser-based design tool for composing and printing sticker art to a Zebra LP2844 thermal printer. Output is rasterized and sent as an EPL2 `GW` (Direct Graphic Write) command over serial (`/dev/ttyUSB0` @ 38400 8N1) through a local backend proxy.
 
 **Confirmed hardware specs (via `UQ` status query):**
 
@@ -133,7 +133,7 @@ Canvas (HTML5 Canvas / OffscreenCanvas)
 - Accepts POST `/print` with JSON body containing base64 bitmap + dimensions
 - Decodes bitmap, XORs every byte with `0xFF` to invert polarity for `GW`
 - Wraps with EPL2 setup (`N`, `q`, `Q`, `D15`, `S2`), `GW0,0,{width_bytes},{height}\r\n` followed immediately by the raw inverted bitmap bytes, then `P1`
-- Writes assembled EPL2 to `/dev/ttyUSB0` via `pyserial` (9600 8N1)
+- Writes assembled EPL2 to `/dev/ttyUSB0` via `pyserial` (38400 8N1)
 - Returns print status + payload byte count
 
 ---
@@ -147,7 +147,7 @@ Canvas (HTML5 Canvas / OffscreenCanvas)
 | Dithering        | `image-q` or custom                 | JS dither library                     |
 | EPL2 encoding    | Backend (Python)                    | Bitmap → `GW` Direct Graphic Write (bytes inverted) |
 | Backend          | FastAPI (Python) + pyserial         | Single endpoint: POST /print          |
-| Printer write    | Python `serial.Serial('/dev/ttyUSB0', 9600, 8N1)` | Direct serial write       |
+| Printer write    | Python `serial.Serial('/dev/ttyUSB0', 38400, 8N1)` | Direct serial write      |
 
 ---
 

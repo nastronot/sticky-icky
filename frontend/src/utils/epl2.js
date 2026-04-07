@@ -7,9 +7,11 @@
  * @param {number} height - Image height in pixels
  * @param {number} labelW - Label width in dots (for EPL2 q command)
  * @param {number} labelH - Label height in dots (for EPL2 Q command)
- * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number }}
+ * @param {number} darkness - EPL2 D command value, 0–15
+ * @param {number} speed - EPL2 S command value, 1–4
+ * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number, darkness: number, speed: number }}
  */
-export function encodePrintPayload(imageData, width, height, labelW, labelH) {
+export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1) {
   const paddedWidth = Math.ceil(width / 8) * 8;
   const widthBytes = paddedWidth / 8;
 
@@ -39,5 +41,5 @@ export function encodePrintPayload(imageData, width, height, labelW, labelH) {
   }
   const base64 = btoa(binary);
 
-  return { bitmap: base64, width: paddedWidth, height, labelW, labelH };
+  return { bitmap: base64, width: paddedWidth, height, labelW, labelH, darkness, speed };
 }

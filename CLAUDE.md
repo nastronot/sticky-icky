@@ -33,7 +33,7 @@ Spec lives at `~/dev/thermal/spec.md`.
 | Property         | Value                         |
 | ---------------- | ----------------------------- |
 | Printer          | Zebra LP2844                  |
-| Serial device    | `/dev/ttyUSB0` @ 9600 8N1 (primary print path) |
+| Serial device    | `/dev/ttyUSB0` @ 38400 8N1 (primary print path) |
 | USB device       | `/dev/usb/lp0` (reference only — GW broken on this transport) |
 | Firmware         | EPL2 only — V4.29. No ZPL.    |
 | Resolution       | 203 DPI                       |
@@ -54,7 +54,7 @@ Canvas (HTML5 Canvas / OffscreenCanvas)
   → pack to 1bpp row-major bytes (1=black, 0=white), base64 encode
   → POST bitmap + dimensions as JSON to backend
   → backend inverts bytes (GW expects 0=black, 1=white)
-  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 9600 8N1
+  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 38400 8N1
 ```
 
 ### EPL2 payload format
@@ -66,8 +66,8 @@ The backend assembles and sends this to the printer over serial:
 N\r\n                                      — clear image buffer
 q{labelW}\r\n                              — label width in dots
 Q{labelH},21\r\n                           — label height in dots + 21-dot gap
-D15\r\n                                    — max darkness (0–15)
-S2\r\n                                     — medium speed (1–4)
+D{darkness}\r\n                            — darkness (0–15, default 12 from frontend)
+S{speed}\r\n                               — print speed (1–4, default 1 from frontend)
 GW0,0,{width_bytes},{height}\r\n           — Direct Graphic Write at (0,0)
 {raw inverted bitmap bytes}                — width_bytes * height bytes, NO separator
 P1\r\n                                     — print 1 copy
@@ -120,13 +120,15 @@ sudo bash -c 'cat /dev/usb/lp0 & echo -e "UQ\r\n" > /dev/usb/lp0; sleep 2; kill 
 | Dithering     | `image-q` or custom JS                |
 | EPL2 encoding | Backend — bitmap → `GW` payload (bytes inverted) |
 | Backend       | FastAPI (Python) + pyserial           |
-| Printer write | `serial.Serial('/dev/ttyUSB0', 9600, 8N1)` |
+| Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1)` |
 
 ---
 
 ## Known Gotchas
 
-- `GW` works over **serial** (`/dev/ttyUSB0` @ 9600 8N1) but NOT over USB (`/dev/usb/lp0`) on V4.29 UPS-branded firmware — over USB it produces blank labels. Serial + GW is the primary print path. `LO` is the fallback that works over USB but has density / payload limits and is no longer used by the backend.
+- Serial baud rate is **38400** — the maximum reliable speed for this printer/firmware. 57600 and above are not supported (the printer drops bytes and prints garbled or partial labels). 9600 also works but is unnecessarily slow for full-page bitmaps.
+- High darkness (D13+) combined with high speed (S2+) overdraws the print head on dense rows and causes prints to fail partway through. Default `D12 S1` is reliable for typical artwork; raise darkness only when paper/ribbon needs more energy and lower speed first if dense rows are present. The frontend density warning factors both into its row-pixel threshold.
+- `GW` works over **serial** (`/dev/ttyUSB0` @ 38400 8N1) but NOT over USB (`/dev/usb/lp0`) on V4.29 UPS-branded firmware — over USB it produces blank labels. Serial + GW is the primary print path. `LO` is the fallback that works over USB but has density / payload limits and is no longer used by the backend.
 - `GW` bit polarity is inverted from the frontend: GW expects `0 = black, 1 = white`. The frontend packs `1 = black, 0 = white`, so the backend XORs every byte with `0xFF` before sending. Do not change frontend packing — invert in the backend.
 - The binary bitmap for `GW` follows the `GW` command line immediately after its `\r\n` with no separator. Any extra bytes between the command and the data will desync the printer.
 - 245K image buffer is the hard ceiling for a single print — an 832×2400 1-bit image is ~249KB, right at the limit; test large prints early

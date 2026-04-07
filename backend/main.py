@@ -59,6 +59,7 @@ async def print_label(req: PrintRequest):
     header = (
         "\r\n"
         "N\r\n"
+        "R0,0\r\n"
         f"q{req.labelW}\r\n"
         f"Q{req.labelH},21\r\n"
         f"D{req.darkness}\r\n"

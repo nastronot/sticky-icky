@@ -137,18 +137,24 @@ function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, i
   return best;
 }
 
-// ── Density helpers ───────────────────────────────────────────────────────────
+// ── Dithering ─────────────────────────────────────────────────────────────────
 
-/** Density threshold (max safe black pixels per row) given current print settings.
- *  Higher darkness and higher speed both overdraw the head on dense rows, so the
- *  threshold drops as either climbs. Floor at 250 so the warning doesn't become
- *  permanent at the worst settings. */
-function computeDensityThreshold(darkness, speed) {
-  const raw = 500 * (1 - (darkness - 8) * 0.05) * (1 - (speed - 1) * 0.1);
-  return Math.max(250, Math.round(raw));
-}
+const DITHER_ALGOS = [
+  { id: 'none',     label: 'None' },
+  { id: 'bayer4',   label: 'Ordered (Bayer 4×4)' },
+  { id: 'bayer8',   label: 'Ordered (Bayer 8×8)' },
+  { id: 'floyd',    label: 'Floyd-Steinberg' },
+  { id: 'atkinson', label: 'Atkinson' },
+];
 
-// Standard 8×8 Bayer ordered-dither matrix (values 0..63).
+// Standard Bayer ordered-dither matrices, values 0..n²-1.
+const BAYER_4 = [
+   0,  8,  2, 10,
+  12,  4, 14,  6,
+   3, 11,  1,  9,
+  15,  7, 13,  5,
+];
+
 const BAYER_8 = [
    0, 32,  8, 40,  2, 34, 10, 42,
   48, 16, 56, 24, 50, 18, 58, 26,
@@ -160,16 +166,33 @@ const BAYER_8 = [
   63, 31, 55, 23, 61, 29, 53, 21,
 ];
 
-/** Apply an ordered Bayer dither in-place: flip black pixels to white where the
- *  matrix threshold (normalized 0..1) is below `amount` (0..1). At 0 nothing
- *  changes; at 1 every black pixel is flipped. */
-function applyOrderedDither(data, width, height, amount) {
+// Error-diffusion kernels: [dx, dy, weight] from the current pixel.
+const FLOYD_KERNEL = [
+  [ 1, 0, 7 / 16],
+  [-1, 1, 3 / 16],
+  [ 0, 1, 5 / 16],
+  [ 1, 1, 1 / 16],
+];
+
+const ATKINSON_KERNEL = [
+  [ 1, 0, 1 / 8],
+  [ 2, 0, 1 / 8],
+  [-1, 1, 1 / 8],
+  [ 0, 1, 1 / 8],
+  [ 1, 1, 1 / 8],
+  [ 0, 2, 1 / 8],
+];
+
+/** Ordered Bayer dither, in-place. `amount` ∈ [0,1] scales the matrix threshold
+ *  so that at 0 no black pixels flip and at 1 every black pixel flips. */
+function applyBayerDither(data, width, height, matrix, size, amount) {
   if (amount <= 0) return;
+  const denom = size * size;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
-      if (data[i] >= 128) continue; // only act on black pixels
-      const t = (BAYER_8[(y & 7) * 8 + (x & 7)] + 0.5) / 64;
+      if (data[i] >= 128) continue; // only act on currently-black pixels
+      const t = (matrix[(y % size) * size + (x % size)] + 0.5) / denom;
       if (t < amount) {
         data[i] = 255;
         data[i + 1] = 255;
@@ -179,18 +202,53 @@ function applyOrderedDither(data, width, height, amount) {
   }
 }
 
-/** Return the maximum count of black pixels in any single row. */
-function peakRowDensity(data, width, height) {
-  let peak = 0;
-  for (let y = 0; y < height; y++) {
-    let count = 0;
-    const rowOff = y * width * 4;
-    for (let x = 0; x < width; x++) {
-      if (data[rowOff + x * 4] < 128) count++;
-    }
-    if (count > peak) peak = count;
+/** Error-diffusion dither (Floyd-Steinberg / Atkinson), in-place.
+ *
+ *  The canvas is rendered as near-binary text, so a "true" error diffusion would
+ *  do nothing on solid black. To make `amount` meaningful we lift solid-black
+ *  pixels toward mid-gray by `amount`: at 0 they stay 0 (no dither), at 1 they
+ *  become 128 (~50% halftone). White pixels are left at 255. */
+function applyErrorDiffusion(data, width, height, kernel, amount) {
+  if (amount <= 0) return;
+  const liftedBlack = amount * 128;
+  const buf = new Float32Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    buf[i] = data[i * 4] < 128 ? liftedBlack : 255;
   }
-  return peak;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const old = buf[idx];
+      const newVal = old < 128 ? 0 : 255;
+      buf[idx] = newVal;
+      const err = old - newVal;
+      for (const [dx, dy, w] of kernel) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        buf[ny * width + nx] += err * w;
+      }
+    }
+  }
+  for (let i = 0; i < width * height; i++) {
+    const v = buf[i] < 128 ? 0 : 255;
+    data[i * 4] = v;
+    data[i * 4 + 1] = v;
+    data[i * 4 + 2] = v;
+  }
+}
+
+/** Dispatch to the chosen algorithm. `amount` is 0..100. */
+function applyDither(data, width, height, algo, amount) {
+  if (algo === 'none' || amount <= 0) return;
+  const a = amount / 100;
+  switch (algo) {
+    case 'bayer4':   return applyBayerDither(data, width, height, BAYER_4, 4, a);
+    case 'bayer8':   return applyBayerDither(data, width, height, BAYER_8, 8, a);
+    case 'floyd':    return applyErrorDiffusion(data, width, height, FLOYD_KERNEL, a);
+    case 'atkinson': return applyErrorDiffusion(data, width, height, ATKINSON_KERNEL, a);
+    default: return;
+  }
 }
 
 function renderCanvas(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing) {
@@ -264,9 +322,8 @@ export default function BigText() {
   const [smallCaps, setSmallCaps] = useState(false);
   const [italic, setItalic] = useState(false);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
-  const [densityDither, setDensityDither] = useState(0); // 0..100 — slider %
-  const [peakDensity, setPeakDensity] = useState(0);
-  const [panelManuallyOpen, setPanelManuallyOpen] = useState(false);
+  const [ditherAlgo, setDitherAlgo] = useState('none');
+  const [ditherAmount, setDitherAmount] = useState(50); // 0..100 %
   const [darkness, setDarkness] = useState(12); // EPL2 D, 0–15
   const [speed, setSpeed] = useState(1);        // EPL2 S, 1–4
 
@@ -314,21 +371,16 @@ export default function BigText() {
       if (cancelled) return;
       renderCanvas(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing);
 
-      // Post-render: optional density dither + density measurement.
-      const ctx = canvas.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      if (densityDither > 0) {
-        applyOrderedDither(imageData.data, canvas.width, canvas.height, densityDither / 100);
+      // Post-render: optional dithering pass.
+      if (ditherAlgo !== 'none' && ditherAmount > 0) {
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        applyDither(imageData.data, canvas.width, canvas.height, ditherAlgo, ditherAmount);
         ctx.putImageData(imageData, 0, 0);
       }
-      setPeakDensity(peakRowDensity(imageData.data, canvas.width, canvas.height));
     });
     return () => { cancelled = true; };
-  }, [displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, labelW, labelH, densityDither]);
-
-  const densityThreshold = computeDensityThreshold(darkness, speed);
-  const densityWarning = peakDensity > densityThreshold;
-  const panelOpen = densityWarning || panelManuallyOpen;
+  }, [displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, labelW, labelH, ditherAlgo, ditherAmount]);
 
   const handlePrint = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -502,6 +554,29 @@ export default function BigText() {
           />
         </label>
 
+        <label className="control-group">
+          <span>Dithering</span>
+          <select value={ditherAlgo} onChange={e => setDitherAlgo(e.target.value)}>
+            {DITHER_ALGOS.map(a => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+        </label>
+
+        {ditherAlgo !== 'none' && (
+          <label className="control-group">
+            <span>Amount <em>{ditherAmount}%</em></span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={ditherAmount}
+              onChange={e => setDitherAmount(Number(e.target.value))}
+            />
+          </label>
+        )}
+
         <button className="print-btn" onClick={handlePrint} disabled={printStatus === 'printing'}>
           {printStatus === 'printing' ? 'Printing…' : 'Print'}
         </button>
@@ -514,56 +589,16 @@ export default function BigText() {
         )}
       </aside>
 
-      <div className="bigtext-canvas-area">
-        <div className="bigtext-canvas-wrap" ref={containerRef}>
-          <canvas
-            ref={canvasRef}
-            width={labelW}
-            height={labelH}
-            style={{
-              width: labelW * displayScale,
-              height: labelH * displayScale,
-            }}
-          />
-        </div>
-
-        <div className={`density-panel ${panelOpen ? 'open' : ''}`}>
-          <button
-            type="button"
-            className="density-tab"
-            onClick={() => setPanelManuallyOpen(o => !o)}
-            aria-label={panelOpen ? 'Hide density panel' : 'Show density panel'}
-          >
-            <span className="density-tab-label">
-              {densityWarning ? '⚠ Density' : 'Density'}
-            </span>
-            <span className="density-tab-chevron">{panelOpen ? '▼' : '▲'}</span>
-          </button>
-          <div className="density-panel-body">
-            {densityWarning ? (
-              <p className="density-warning">
-                ⚠ Dense rows detected — print may fail. Use density reduction slider.
-              </p>
-            ) : (
-              <p className="density-ok">Row density within safe range.</p>
-            )}
-            <p className="density-readout">
-              Peak: {peakDensity}/{labelW} pixels
-              <span className="density-threshold"> (threshold {densityThreshold} @ D{darkness} S{speed})</span>
-            </p>
-            <label className="density-slider">
-              <span>Density reduction <em>{densityDither}%</em></span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={densityDither}
-                onChange={e => setDensityDither(Number(e.target.value))}
-              />
-            </label>
-          </div>
-        </div>
+      <div className="bigtext-canvas-wrap" ref={containerRef}>
+        <canvas
+          ref={canvasRef}
+          width={labelW}
+          height={labelH}
+          style={{
+            width: labelW * displayScale,
+            height: labelH * displayScale,
+          }}
+        />
       </div>
     </div>
   );

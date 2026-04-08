@@ -129,7 +129,7 @@ export default function ImageControls({ layer, onChange }) {
       </div>
 
       <label className="control-group">
-        <span>Threshold <em>{layer.threshold}</em></span>
+        <span>Brightness <em>{layer.threshold}</em></span>
         <input
           type="range"
           min={0}

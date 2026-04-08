@@ -112,16 +112,9 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       }
       if (cancelled) return;
 
-      // Composite onto the visible (print) canvas. Stays free of UI chrome
+      // XOR-composite onto the visible (print) canvas. Stays free of UI chrome
       // so the print pipeline can read pixels straight from this canvas.
-      const ctx = visible.getContext('2d');
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, visible.width, visible.height);
-      for (const layer of layers) {
-        if (!layer.visible) continue;
-        const off = map.get(layer.id);
-        if (off) ctx.drawImage(off, 0, 0);
-      }
+      xorComposite(visible.getContext('2d'), labelW, labelH, layers, map);
 
       // Draw selection chrome onto the overlay canvas. Sits on top via CSS;
       // never sampled by the print pipeline.
@@ -391,6 +384,57 @@ function computeResize(layer, handle, dx, dy, constrain) {
     x: newCx - w / 2,
     y: newCy - h / 2,
   };
+}
+
+// ── XOR compositing ─────────────────────────────────────────────────────────
+
+/**
+ * Composite all visible layers onto `ctx` using black-pixel XOR semantics:
+ * each layer's opaque-and-dark pixel flips the destination pixel between
+ * black and white. Transparent or light source pixels are skipped, so a
+ * single layer paints normally; two overlapping layers cut a hole; three
+ * paint again; and so on.
+ *
+ * Reads/writes ImageData once for the destination and once per layer. Uses
+ * a Uint32Array view on the destination for the flip itself so the inner
+ * loop is a single 32-bit store rather than three byte stores.
+ */
+function xorComposite(ctx, labelW, labelH, layers, offscreenMap) {
+  // Start from solid white.
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, labelW, labelH);
+
+  // Bail out early if there's nothing to draw — saves the getImageData round
+  // trip on first paint with no layers.
+  const visibleLayers = layers.filter(l => l.visible && offscreenMap.get(l.id));
+  if (visibleLayers.length === 0) return;
+
+  const result = ctx.getImageData(0, 0, labelW, labelH);
+  const resultData = result.data;
+  const resultU32 = new Uint32Array(resultData.buffer);
+  // Premultiplied byte order in a Uint32Array on little-endian systems is
+  // ABGR; both targets here are RGBA grayscale (R==G==B), so the literal
+  // value is the same regardless of endian: 0xFF000000 + 0x00RRGGBB.
+  const WHITE_U32 = (255 << 24) | (255 << 16) | (255 << 8) | 255; // R=G=B=255, A=255
+  const BLACK_U32 = (255 << 24) |   (0 << 16) |   (0 << 8) |   0; // R=G=B=0,   A=255
+
+  for (const layer of visibleLayers) {
+    const off = offscreenMap.get(layer.id);
+    const offCtx = off.getContext('2d');
+    const src = offCtx.getImageData(0, 0, labelW, labelH);
+    const srcData = src.data;
+    const len = srcData.length;
+    for (let i = 0; i < len; i += 4) {
+      // Skip transparent and light source pixels — only opaque-and-dark
+      // pixels participate in the XOR flip.
+      if (srcData[i + 3] <= 128) continue;
+      if (srcData[i] >= 128) continue;
+      const j = i >> 2; // index into the Uint32 view
+      resultU32[j] = (resultData[i] < 128) ? WHITE_U32 : BLACK_U32;
+    }
+  }
+
+  ctx.putImageData(result, 0, 0);
 }
 
 // ── Selection chrome ────────────────────────────────────────────────────────

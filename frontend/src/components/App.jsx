@@ -12,6 +12,9 @@ import {
   deleteDesign as storageDeleteDesign,
   toggleFavorite as storageToggleFavorite,
   makeThumbnail,
+  autoSave,
+  loadAutoSave,
+  clearAutoSave,
 } from '../utils/storage.js';
 import Gallery from './Gallery.jsx';
 import './studio.css';
@@ -410,6 +413,62 @@ export default function App() {
       console.error('Save failed:', err);
       setSaveStatus({ error: err.message ?? 'Save failed' });
     }
+  }, [layers, presetIdx, customW, customH]);
+
+  // ── Autosave + session restore ────────────────────────────────────────────
+  // On mount, check for an autosaved snapshot and offer to restore it. Until
+  // that one-shot check completes (and the user has decided), the autosave
+  // effect short-circuits — otherwise the default initial layers would
+  // immediately overwrite the snapshot before we got a chance to ask.
+  const autosaveReadyRef = useRef(false);
+
+  useEffect(() => {
+    const snap = loadAutoSave();
+    if (snap && window.confirm('Restore last session?')) {
+      deserializeDesign(snap)
+        .then((restored) => {
+          suppressNextHistoryRef.current = true;
+          setLayers(restored.layers);
+          setSelectedLayerId(restored.layers[0]?.id ?? null);
+          if (typeof restored.presetIdx === 'number') setPresetIdx(restored.presetIdx);
+          if (typeof restored.customW === 'number') setCustomW(restored.customW);
+          if (typeof restored.customH === 'number') setCustomH(restored.customH);
+        })
+        .catch((err) => {
+          console.error('Autosave restore failed:', err);
+          clearAutoSave();
+        })
+        .finally(() => {
+          autosaveReadyRef.current = true;
+        });
+    } else {
+      if (snap) clearAutoSave();
+      autosaveReadyRef.current = true;
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced autosave on any state change. Skip until the mount-time
+  // restore check has resolved so we don't clobber the saved snapshot.
+  useEffect(() => {
+    if (!autosaveReadyRef.current) return;
+    const handle = setTimeout(() => {
+      try {
+        const snap = serializeDesign({
+          name: 'autosave',
+          layers,
+          presetIdx,
+          customW,
+          customH,
+          thumbnail: null,
+        });
+        autoSave(snap);
+      } catch (err) {
+        console.warn('Autosave failed:', err);
+      }
+    }, 2000);
+    return () => clearTimeout(handle);
   }, [layers, presetIdx, customW, customH]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────

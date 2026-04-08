@@ -25,10 +25,6 @@ export default function LayerControls({
   onCustomWChange,
   customH,
   onCustomHChange,
-  darkness,
-  onDarknessChange,
-  speed,
-  onSpeedChange,
   onPrint,
   printStatus,
 }) {
@@ -87,30 +83,6 @@ export default function LayerControls({
             </label>
           </div>
         )}
-
-        <label className="control-group">
-          <span>Darkness <em>{darkness}</em></span>
-          <input
-            type="range"
-            min={0}
-            max={15}
-            step={1}
-            value={darkness}
-            onChange={e => onDarknessChange(Number(e.target.value))}
-          />
-        </label>
-
-        <label className="control-group">
-          <span>Speed <em>{speed}</em></span>
-          <input
-            type="range"
-            min={1}
-            max={4}
-            step={1}
-            value={speed}
-            onChange={e => onSpeedChange(Number(e.target.value))}
-          />
-        </label>
 
         <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
           {printStatus === 'printing' ? 'Printing…' : 'Print'}

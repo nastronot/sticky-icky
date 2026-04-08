@@ -137,8 +137,11 @@ export default function App() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [customW, setCustomW] = useState(4.0);
   const [customH, setCustomH] = useState(2.0);
-  const [darkness, setDarkness] = useState(15);
-  const [speed, setSpeed] = useState(1);
+  // Print darkness and speed are fixed — D15 S1 is the reliable combination
+  // for our LP2844 / dense raster art and the sliders never moved off these
+  // values in practice. Inline the constants here and skip the UI clutter.
+  const DARKNESS = 15;
+  const SPEED = 1;
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
@@ -296,7 +299,7 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const body = encodePrintPayload(
-      imageData.data, canvas.width, canvas.height, labelW, labelH, darkness, speed,
+      imageData.data, canvas.width, canvas.height, labelW, labelH, DARKNESS, SPEED,
     );
     try {
       const res = await fetch('http://localhost:8765/print', {
@@ -313,7 +316,7 @@ export default function App() {
     } catch (err) {
       setPrintStatus({ error: err.message });
     }
-  }, [labelW, labelH, darkness, speed]);
+  }, [labelW, labelH]);
 
   const handlePresetIdxChange = useCallback((i) => {
     setPresetIdx(i);
@@ -397,10 +400,6 @@ export default function App() {
         onCustomWChange={setCustomW}
         customH={customH}
         onCustomHChange={setCustomH}
-        darkness={darkness}
-        onDarknessChange={setDarkness}
-        speed={speed}
-        onSpeedChange={setSpeed}
         onPrint={handlePrint}
         printStatus={printStatus}
       />

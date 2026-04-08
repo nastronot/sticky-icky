@@ -401,6 +401,15 @@ export default function App() {
       return;
     }
     suppressNextHistoryRef.current = true;
+    // Wipe undo/redo so the previous design isn't reachable from the fresh
+    // canvas — also drop any in-flight burst snapshot.
+    historyRef.current.past = [];
+    historyRef.current.future = [];
+    if (pendingHistoryRef.current.timer) {
+      clearTimeout(pendingHistoryRef.current.timer);
+      pendingHistoryRef.current.timer = null;
+      pendingHistoryRef.current.snapshot = null;
+    }
     setLayers([{ ...DEFAULT_BIGTEXT, id: 'default' }]);
     setSelectedLayerId('default');
     setPresetIdx(0);

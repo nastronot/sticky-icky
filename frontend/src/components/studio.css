@@ -260,6 +260,22 @@
   overflow-y: auto;
 }
 
+.layer-row-wrap {
+  list-style: none;
+}
+
+.layer-insert-bar {
+  height: 2px;
+  margin: 0 8px;
+  background: #3aa0ff;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.layer-row.dragging {
+  opacity: 0.4;
+}
+
 .layer-row {
   display: flex;
   align-items: center;

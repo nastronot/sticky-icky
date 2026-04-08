@@ -266,14 +266,17 @@ export default function App() {
     });
   }, [selectedLayerId]);
 
-  const moveLayer = useCallback((id, delta) => {
+  const moveLayerTo = useCallback((id, targetIdx) => {
     setLayers(ls => {
-      const idx = ls.findIndex(l => l.id === id);
-      const target = idx + delta;
-      if (idx === -1 || target < 0 || target >= ls.length) return ls;
+      const fromIdx = ls.findIndex(l => l.id === id);
+      if (fromIdx === -1) return ls;
+      // No-op if dropping into the slot the layer already occupies.
+      if (targetIdx === fromIdx || targetIdx === fromIdx + 1) return ls;
       const next = ls.slice();
-      const [layer] = next.splice(idx, 1);
-      next.splice(target, 0, layer);
+      const [layer] = next.splice(fromIdx, 1);
+      // Removing earlier element shifts all later indices down by one.
+      const insertAt = targetIdx > fromIdx ? targetIdx - 1 : targetIdx;
+      next.splice(insertAt, 0, layer);
       return next;
     });
   }, []);
@@ -415,8 +418,7 @@ export default function App() {
         onAddImage={addImage}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}
-        onMoveUp={(id) => moveLayer(id, -1)}
-        onMoveDown={(id) => moveLayer(id, 1)}
+        onMoveLayerTo={moveLayerTo}
       />
     </div>
   );

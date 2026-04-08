@@ -110,6 +110,83 @@ export function applyDither(data, width, height, algo, amount) {
   }
 }
 
+// ── Image-layer dither pipeline ───────────────────────────────────────────────
+//
+// `ditherImage` is the entry point used by image layers. Unlike the BigText
+// pipeline above, it takes the original RGBA pixels of an imported image,
+// converts to grayscale, applies a brightness threshold, and runs the chosen
+// dithering algorithm — returning a fresh ImageData. Algorithm names match
+// the image-layer dropdown:
+//   'none' | 'bayer4' | 'bayer8' | 'floydSteinberg' | 'atkinson'
+
+export function ditherImage(originalImageData, algo, amount, threshold) {
+  const { width, height } = originalImageData;
+  const src = originalImageData.data;
+  const N = width * height;
+
+  // Build grayscale buffer (Rec. 601 luma).
+  const gray = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    gray[i] = 0.299 * src[i * 4] + 0.587 * src[i * 4 + 1] + 0.114 * src[i * 4 + 2];
+  }
+
+  const out = new Uint8ClampedArray(N * 4);
+  const a = Math.max(0, Math.min(1, amount / 100));
+
+  function emit(i, v) {
+    out[i * 4]     = v;
+    out[i * 4 + 1] = v;
+    out[i * 4 + 2] = v;
+    out[i * 4 + 3] = src[i * 4 + 3];
+  }
+
+  if (algo === 'none' || a === 0) {
+    for (let i = 0; i < N; i++) emit(i, gray[i] < threshold ? 0 : 255);
+    return new ImageData(out, width, height);
+  }
+
+  if (algo === 'bayer4' || algo === 'bayer8') {
+    const matrix = algo === 'bayer4' ? BAYER_4 : BAYER_8;
+    const size = algo === 'bayer4' ? 4 : 8;
+    const denom = size * size;
+    const scale = a * 255;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        const t = (matrix[(y % size) * size + (x % size)] + 0.5) / denom - 0.5;
+        emit(i, gray[i] + t * scale < threshold ? 0 : 255);
+      }
+    }
+    return new ImageData(out, width, height);
+  }
+
+  if (algo === 'floydSteinberg' || algo === 'atkinson') {
+    const kernel = algo === 'atkinson' ? ATKINSON_KERNEL : FLOYD_KERNEL;
+    const buf = new Float32Array(gray);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        const old = buf[idx];
+        const newVal = old < threshold ? 0 : 255;
+        buf[idx] = newVal;
+        const err = (old - newVal) * a;
+        for (const [dx, dy, w] of kernel) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+          buf[ny * width + nx] += err * w;
+        }
+      }
+    }
+    for (let i = 0; i < N; i++) emit(i, buf[i] < threshold ? 0 : 255);
+    return new ImageData(out, width, height);
+  }
+
+  // Fallback: just threshold.
+  for (let i = 0; i < N; i++) emit(i, gray[i] < threshold ? 0 : 255);
+  return new ImageData(out, width, height);
+}
+
 // ── Image-import dither helpers (RGBA in → RGBA out) ──────────────────────────
 
 /**

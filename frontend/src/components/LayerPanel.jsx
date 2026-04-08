@@ -1,17 +1,27 @@
+import { useRef } from 'react';
+
 /**
- * Right-sidebar layer list. Phase 1 supports Big Text only; Text and Image
- * appear in the Add menu but are disabled.
+ * Right-sidebar layer list. Big Text and Image are addable; plain Text is
+ * still a placeholder for a future phase.
  */
 export default function LayerPanel({
   layers,
   selectedLayerId,
   onSelect,
   onAddBigText,
+  onAddImage,
   onToggleVisibility,
   onDelete,
   onMoveUp,
   onMoveDown,
 }) {
+  const fileInputRef = useRef(null);
+  const handleAddImageClick = () => fileInputRef.current?.click();
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) onAddImage(file);
+    e.target.value = ''; // allow re-selecting the same file
+  };
   return (
     <aside className="layer-panel">
       <div className="layer-panel-header">
@@ -66,8 +76,15 @@ export default function LayerPanel({
         <div className="btn-group btn-group-vert">
           <button type="button" onClick={onAddBigText}>Big Text</button>
           <button type="button" disabled title="Coming soon">Text</button>
-          <button type="button" disabled title="Coming soon">Image</button>
+          <button type="button" onClick={handleAddImageClick}>Image</button>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
       </div>
     </aside>
   );

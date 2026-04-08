@@ -1,4 +1,5 @@
 import BigTextControls from './BigTextControls.jsx';
+import ImageControls from './ImageControls.jsx';
 
 const PRESETS = [
   { label: '3.00 × 2.00"', w: 570, h: 406 },
@@ -36,6 +37,9 @@ export default function LayerControls({
       <div className="layer-controls-scroll">
         {selectedLayer?.type === 'bigtext' && (
           <BigTextControls layer={selectedLayer} onChange={onLayerChange} />
+        )}
+        {selectedLayer?.type === 'image' && (
+          <ImageControls layer={selectedLayer} onChange={onLayerChange} />
         )}
         {!selectedLayer && (
           <p className="empty-hint">Select a layer to edit its properties.</p>

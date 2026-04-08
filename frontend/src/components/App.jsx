@@ -32,6 +32,57 @@ function makeBigTextLayer() {
   };
 }
 
+let imageSeq = 0;
+/** Read a File into an HTMLImageElement, then into ImageData. */
+async function loadImageFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const tmp = document.createElement('canvas');
+    tmp.width = img.naturalWidth;
+    tmp.height = img.naturalHeight;
+    const ctx = tmp.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    return ctx.getImageData(0, 0, tmp.width, tmp.height);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function makeImageLayer(file, originalImage, labelW, labelH) {
+  const naturalW = originalImage.width;
+  const naturalH = originalImage.height;
+  // Scale to fit the label preserving aspect ratio.
+  const scale = Math.min(1, labelW / naturalW, labelH / naturalH);
+  const width = Math.round(naturalW * scale);
+  const height = Math.round(naturalH * scale);
+  const n = ++imageSeq;
+  return {
+    id: `image-${Date.now()}-${n}`,
+    type: 'image',
+    name: file.name || `Image ${n}`,
+    visible: true,
+    originalImage,
+    naturalW,
+    naturalH,
+    x: Math.round((labelW - width) / 2),
+    y: Math.round((labelH - height) / 2),
+    width,
+    height,
+    rotation: 0,
+    flipH: false,
+    flipV: false,
+    ditherAlgo: 'floydSteinberg',
+    ditherAmount: 50,
+    threshold: 128,
+  };
+}
+
 export default function App() {
   // ── Layer state ───────────────────────────────────────────────────────────
   const [layers, setLayers] = useState(() => [{ ...DEFAULT_BIGTEXT, id: 'default' }]);
@@ -41,7 +92,7 @@ export default function App() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [customW, setCustomW] = useState(4.0);
   const [customH, setCustomH] = useState(2.0);
-  const [darkness, setDarkness] = useState(12);
+  const [darkness, setDarkness] = useState(15);
   const [speed, setSpeed] = useState(1);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
 
@@ -62,6 +113,17 @@ export default function App() {
     setLayers(ls => [...ls, layer]);
     setSelectedLayerId(layer.id);
   }, []);
+
+  const addImage = useCallback(async (file) => {
+    try {
+      const imageData = await loadImageFile(file);
+      const layer = makeImageLayer(file, imageData, labelW, labelH);
+      setLayers(ls => [...ls, layer]);
+      setSelectedLayerId(layer.id);
+    } catch (err) {
+      console.error('Failed to import image:', err);
+    }
+  }, [labelW, labelH]);
 
   const toggleVisibility = useCallback((id) => {
     setLayers(ls => ls.map(l => (l.id === id ? { ...l, visible: !l.visible } : l)));
@@ -144,6 +206,9 @@ export default function App() {
         layers={layers}
         labelW={labelW}
         labelH={labelH}
+        selectedLayerId={selectedLayerId}
+        onSelectLayer={setSelectedLayerId}
+        onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}
       />
 
       <LayerPanel
@@ -151,6 +216,7 @@ export default function App() {
         selectedLayerId={selectedLayerId}
         onSelect={setSelectedLayerId}
         onAddBigText={addBigText}
+        onAddImage={addImage}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}
         onMoveUp={(id) => moveLayer(id, -1)}

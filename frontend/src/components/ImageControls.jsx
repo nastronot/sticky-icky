@@ -142,11 +142,15 @@ export default function ImageControls({ layer, onChange }) {
           <button
             className={layer.flipH ? 'active' : ''}
             onClick={() => set({ flipH: !layer.flipH })}
-          >Horizontal</button>
+            title="Flip horizontal"
+            aria-label="Flip horizontal"
+          >⇔</button>
           <button
             className={layer.flipV ? 'active' : ''}
             onClick={() => set({ flipV: !layer.flipV })}
-          >Vertical</button>
+            title="Flip vertical"
+            aria-label="Flip vertical"
+          >⇕</button>
         </div>
       </div>
 

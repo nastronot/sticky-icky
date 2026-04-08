@@ -11,6 +11,7 @@ export default function LayerPanel({
   onAddImage,
   onToggleVisibility,
   onDelete,
+  onDuplicate,
   onMoveLayerTo,
 }) {
   const fileInputRef = useRef(null);
@@ -100,7 +101,14 @@ export default function LayerPanel({
                 <div className="layer-row-actions">
                   <button
                     type="button"
+                    aria-label="Duplicate layer"
+                    title="Duplicate"
+                    onClick={e => { e.stopPropagation(); onDuplicate(layer.id); }}
+                  >⧉</button>
+                  <button
+                    type="button"
                     aria-label="Delete layer"
+                    title="Delete"
                     disabled={layers.length === 1}
                     onClick={e => { e.stopPropagation(); onDelete(layer.id); }}
                   >✕</button>

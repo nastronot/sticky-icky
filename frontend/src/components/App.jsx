@@ -292,6 +292,26 @@ export default function App() {
     });
   }, [selectedLayerId]);
 
+  const duplicateLayer = useCallback((id) => {
+    let newId = null;
+    setLayers(ls => {
+      const idx = ls.findIndex(l => l.id === id);
+      if (idx === -1) return ls;
+      const orig = ls[idx];
+      newId = `${orig.type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      // Shallow clone — image layers' originalImage ImageData is read-only
+      // and is safe to share by reference. The dither cache keys on layer
+      // id so the copy gets its own (initially empty) cache entry.
+      const copy = { ...orig, id: newId, name: `${orig.name} copy` };
+      const next = ls.slice();
+      // Insert directly above the original in the array (= above in z-order
+      // since the composite walks layers low → high index).
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+    if (newId) setSelectedLayerId(newId);
+  }, []);
+
   const moveLayerTo = useCallback((id, targetIdx) => {
     setLayers(ls => {
       const fromIdx = ls.findIndex(l => l.id === id);
@@ -525,6 +545,12 @@ export default function App() {
         redo();
         return;
       }
+      if (ctrl && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        const id = selectedRef.current;
+        if (id) duplicateLayer(id);
+        return;
+      }
       // The rest of the shortcuts shouldn't fire while editing text.
       if (isEditable(e.target)) return;
 
@@ -560,7 +586,7 @@ export default function App() {
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [undo, redo, deleteLayer]);
+  }, [undo, redo, deleteLayer, duplicateLayer]);
 
   return (
     <div className="studio">
@@ -602,6 +628,7 @@ export default function App() {
         onAddImage={addImage}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}
+        onDuplicate={duplicateLayer}
         onMoveLayerTo={moveLayerTo}
       />
 

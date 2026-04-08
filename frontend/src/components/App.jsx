@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { encodePrintPayload } from '../utils/epl2.js';
 import CanvasPreview from './CanvasPreview.jsx';
 import LayerControls, { PRESETS } from './LayerControls.jsx';
@@ -138,6 +138,88 @@ export default function App() {
   const selectedLayer = layers.find(l => l.id === selectedLayerId) ?? null;
   const visibleCanvasRef = useRef(null);
 
+  // ── Undo / redo ───────────────────────────────────────────────────────────
+  // History is captured automatically from layer changes, but bursts of
+  // changes (text typing, slider drags, canvas drags) coalesce into a single
+  // undo step via a 350 ms debounce so a ctrl+z reverts a meaningful chunk
+  // rather than a single keystroke.
+  const HISTORY_LIMIT = 20;
+  const HISTORY_DEBOUNCE_MS = 350;
+  const historyRef = useRef({ past: [], future: [] });
+  const prevLayersRef = useRef(null);
+  const pendingHistoryRef = useRef({ snapshot: null, timer: null });
+  const suppressNextHistoryRef = useRef(false);
+
+  const flushPendingHistory = useCallback(() => {
+    const pending = pendingHistoryRef.current;
+    if (pending.timer === null) return;
+    clearTimeout(pending.timer);
+    historyRef.current.past.push(pending.snapshot);
+    if (historyRef.current.past.length > HISTORY_LIMIT) historyRef.current.past.shift();
+    pending.timer = null;
+    pending.snapshot = null;
+  }, []);
+
+  useEffect(() => {
+    // First render: just establish the baseline.
+    if (prevLayersRef.current === null) {
+      prevLayersRef.current = layers;
+      return;
+    }
+    const prev = prevLayersRef.current;
+    prevLayersRef.current = layers;
+
+    // Don't capture history while restoring from undo / redo.
+    if (suppressNextHistoryRef.current) {
+      suppressNextHistoryRef.current = false;
+      return;
+    }
+
+    // Coalesce a burst of changes: snapshot the *pre-burst* state once and
+    // schedule a commit. Subsequent changes inside the debounce window keep
+    // the same snapshot.
+    const pending = pendingHistoryRef.current;
+    if (pending.timer === null) {
+      pending.snapshot = prev;
+      pending.timer = setTimeout(() => {
+        historyRef.current.past.push(pending.snapshot);
+        if (historyRef.current.past.length > HISTORY_LIMIT) historyRef.current.past.shift();
+        historyRef.current.future = [];
+        pending.timer = null;
+        pending.snapshot = null;
+      }, HISTORY_DEBOUNCE_MS);
+    }
+  }, [layers]);
+
+  const undo = useCallback(() => {
+    flushPendingHistory();
+    const past = historyRef.current.past;
+    if (past.length === 0) return;
+    const snapshot = past.pop();
+    historyRef.current.future.push(layers);
+    suppressNextHistoryRef.current = true;
+    setLayers(snapshot);
+    // Keep selection valid: if the previously-selected layer no longer
+    // exists in the snapshot, fall back to the first layer.
+    if (!snapshot.find(l => l.id === selectedLayerId)) {
+      setSelectedLayerId(snapshot[0]?.id ?? null);
+    }
+  }, [layers, selectedLayerId, flushPendingHistory]);
+
+  const redo = useCallback(() => {
+    flushPendingHistory();
+    const future = historyRef.current.future;
+    if (future.length === 0) return;
+    const snapshot = future.pop();
+    historyRef.current.past.push(layers);
+    if (historyRef.current.past.length > HISTORY_LIMIT) historyRef.current.past.shift();
+    suppressNextHistoryRef.current = true;
+    setLayers(snapshot);
+    if (!snapshot.find(l => l.id === selectedLayerId)) {
+      setSelectedLayerId(snapshot[0]?.id ?? null);
+    }
+  }, [layers, selectedLayerId, flushPendingHistory]);
+
   // ── Layer mutators ────────────────────────────────────────────────────────
   const patchSelectedLayer = useCallback((patch) => {
     setLayers(ls => ls.map(l => (l.id === selectedLayerId ? { ...l, ...patch } : l)));
@@ -222,6 +304,71 @@ export default function App() {
     setPresetIdx(i);
     setPrintStatus(null);
   }, []);
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // Bound at document level so they fire from anywhere except editable fields.
+  const layersRef = useRef(layers);
+  const selectedRef = useRef(selectedLayerId);
+  layersRef.current = layers;
+  selectedRef.current = selectedLayerId;
+
+  useEffect(() => {
+    const isEditable = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    };
+
+    const onKeyDown = (e) => {
+      // Undo / redo are allowed even from inside text fields, otherwise
+      // typing locks you out of them.
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
+      if (ctrl && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      // The rest of the shortcuts shouldn't fire while editing text.
+      if (isEditable(e.target)) return;
+
+      const id = selectedRef.current;
+      const ls = layersRef.current;
+      const layer = ls.find(l => l.id === id);
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSelectedLayerId(null);
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && layer && ls.length > 1) {
+        e.preventDefault();
+        deleteLayer(id);
+        return;
+      }
+      if (layer && (layer.type === 'image' || layer.type === 'text')) {
+        const step = e.shiftKey ? 10 : 1;
+        let dx = 0;
+        let dy = 0;
+        if (e.key === 'ArrowLeft')  dx = -step;
+        if (e.key === 'ArrowRight') dx =  step;
+        if (e.key === 'ArrowUp')    dy = -step;
+        if (e.key === 'ArrowDown')  dy =  step;
+        if (dx !== 0 || dy !== 0) {
+          e.preventDefault();
+          setLayers(prev => prev.map(l => (l.id === id ? { ...l, x: l.x + dx, y: l.y + dy } : l)));
+          return;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo, deleteLayer]);
 
   return (
     <div className="studio">

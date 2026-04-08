@@ -12,7 +12,7 @@ const DITHER_ALGOS = [
 export default function ImageControls({ layer, onChange }) {
   // Aspect lock lives on the layer itself so the canvas resize handles
   // (in CanvasPreview) and the sidebar W/H inputs share one source of truth.
-  const lockAspect = layer.lockAspect ?? true;
+  const lockAspect = layer.lockAspect ?? false;
   const set = useCallback((patch) => onChange(patch), [onChange]);
 
   // The aspect ratio is taken from the original imported image's natural
@@ -115,6 +115,12 @@ export default function ImageControls({ layer, onChange }) {
             className={!lockAspect ? 'active' : ''}
             onClick={() => set({ lockAspect: false })}
           >Free</button>
+          <button
+            onClick={() => set({
+              height: Math.round(layer.width * (originalHeight / originalWidth)),
+            })}
+            title="Snap back to the original image's aspect ratio (height follows current width)"
+          >Reset</button>
         </div>
       </div>
 

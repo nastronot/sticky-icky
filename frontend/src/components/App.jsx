@@ -77,7 +77,7 @@ function makeImageLayer(file, originalImage, labelW, labelH) {
     rotation: 0,
     flipH: false,
     flipV: false,
-    lockAspect: true,
+    lockAspect: false,
     ditherAlgo: 'floydSteinberg',
     ditherAmount: 50,
     threshold: 128,

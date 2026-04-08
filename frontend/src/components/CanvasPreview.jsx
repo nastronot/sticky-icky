@@ -196,7 +196,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       if (ix.mode === 'move') {
         onPatchLayer(layer.id, { x: layer.x + dx, y: layer.y + dy });
       } else if (ix.mode === 'resize') {
-        const next = computeResize(layer, ix.handle, dx, dy);
+        const next = computeResize(layer, ix.handle, dx, dy, e.shiftKey);
         if (next) onPatchLayer(layer.id, next);
       } else if (ix.mode === 'rotate') {
         const cx = layer.x + layer.width / 2;
@@ -298,8 +298,11 @@ function hitHandle(pt, layer) {
 }
 
 /** Translate a (dx, dy) drag of the given handle into a layer patch.
- *  Resize is computed in local space so rotated boxes still feel right. */
-function computeResize(layer, handle, dx, dy) {
+ *  Resize is computed in local space so rotated boxes still feel right.
+ *  If `constrain` is true (shift held), the new dimensions are forced to
+ *  preserve the layer's original aspect ratio — driven by whichever axis
+ *  changed more. Default is free / per-axis resize. */
+function computeResize(layer, handle, dx, dy, constrain) {
   // Convert the world-space delta into local space (rotate by -theta).
   const rad = (-layer.rotation * Math.PI) / 180;
   const c = Math.cos(rad);
@@ -319,6 +322,19 @@ function computeResize(layer, handle, dx, dy) {
   if (handle.includes('n')) h -= ly;
   w = Math.max(4, w);
   h = Math.max(4, h);
+
+  if (constrain && layer.width > 0 && layer.height > 0) {
+    const aspect = layer.width / layer.height;
+    const dwRatio = Math.abs(w - layer.width) / layer.width;
+    const dhRatio = Math.abs(h - layer.height) / layer.height;
+    if (dwRatio >= dhRatio) {
+      h = w / aspect;
+    } else {
+      w = h * aspect;
+    }
+    w = Math.max(4, w);
+    h = Math.max(4, h);
+  }
 
   // Re-center so the anchor edge stays put in world space.
   const newAnchorX = handle.includes('w') ? w / 2 : handle.includes('e') ? -w / 2 : 0;

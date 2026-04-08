@@ -29,6 +29,7 @@ export default function LayerControls({
   printStatus,
   onSave,
   saveStatus,
+  onOpenGallery,
 }) {
   const preset = PRESETS[presetIdx];
 
@@ -88,6 +89,7 @@ export default function LayerControls({
 
         <div className="btn-group">
           <button type="button" className="secondary-btn" onClick={onSave}>Save</button>
+          <button type="button" className="secondary-btn" onClick={onOpenGallery}>Load</button>
         </div>
         {saveStatus === 'saved' && <p className="status ok">Saved.</p>}
         {saveStatus && typeof saveStatus === 'object' && (

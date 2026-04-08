@@ -4,7 +4,16 @@ import CanvasPreview from './CanvasPreview.jsx';
 import LayerControls, { PRESETS } from './LayerControls.jsx';
 import LayerPanel from './LayerPanel.jsx';
 import { measureTextLayer } from '../utils/renderText.js';
-import { saveDesign, serializeDesign, makeThumbnail } from '../utils/storage.js';
+import {
+  saveDesign,
+  serializeDesign,
+  deserializeDesign,
+  loadDesigns,
+  deleteDesign as storageDeleteDesign,
+  toggleFavorite as storageToggleFavorite,
+  makeThumbnail,
+} from '../utils/storage.js';
+import Gallery from './Gallery.jsx';
 import './studio.css';
 
 const DEFAULT_BIGTEXT = {
@@ -146,6 +155,8 @@ export default function App() {
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryDesigns, setGalleryDesigns] = useState([]);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
 
   const preset = PRESETS[presetIdx];
@@ -325,6 +336,58 @@ export default function App() {
     setPrintStatus(null);
   }, []);
 
+  // Refresh the gallery's design list from localStorage. Called whenever the
+  // gallery opens, after a save, and after a delete / favorite toggle.
+  const refreshGallery = useCallback(() => {
+    setGalleryDesigns(loadDesigns());
+  }, []);
+
+  const handleOpenGallery = useCallback(() => {
+    refreshGallery();
+    setGalleryOpen(true);
+  }, [refreshGallery]);
+
+  const handleCloseGallery = useCallback(() => {
+    setGalleryOpen(false);
+  }, []);
+
+  const handleLoadDesign = useCallback(async (design) => {
+    // Confirm before clobbering meaningful in-progress work.
+    const hasContent =
+      layers.length > 1 ||
+      (layers[0]?.type === 'bigtext' && (layers[0]?.text ?? '').length > 0) ||
+      (layers[0]?.type === 'text' && (layers[0]?.text ?? '') !== 'Text') ||
+      (layers[0]?.type === 'image');
+    if (hasContent && !window.confirm('Replace the current design? Unsaved changes will be lost.')) {
+      return;
+    }
+    try {
+      const restored = await deserializeDesign(design);
+      // Suppress history capture for the destructive replace — undo would
+      // be confusing across a full design swap.
+      suppressNextHistoryRef.current = true;
+      setLayers(restored.layers);
+      setSelectedLayerId(restored.layers[0]?.id ?? null);
+      setPresetIdx(restored.presetIdx ?? 0);
+      if (typeof restored.customW === 'number') setCustomW(restored.customW);
+      if (typeof restored.customH === 'number') setCustomH(restored.customH);
+      setGalleryOpen(false);
+    } catch (err) {
+      console.error('Load failed:', err);
+      window.alert(`Load failed: ${err.message ?? err}`);
+    }
+  }, [layers]);
+
+  const handleDeleteDesign = useCallback((id) => {
+    storageDeleteDesign(id);
+    refreshGallery();
+  }, [refreshGallery]);
+
+  const handleToggleFavorite = useCallback((id) => {
+    storageToggleFavorite(id);
+    refreshGallery();
+  }, [refreshGallery]);
+
   const handleSave = useCallback(() => {
     const canvas = visibleCanvasRef.current;
     const defaultName = `Design ${new Date().toLocaleString()}`;
@@ -430,6 +493,7 @@ export default function App() {
         printStatus={printStatus}
         onSave={handleSave}
         saveStatus={saveStatus}
+        onOpenGallery={handleOpenGallery}
       />
 
       <CanvasPreview
@@ -454,6 +518,16 @@ export default function App() {
         onDelete={deleteLayer}
         onMoveLayerTo={moveLayerTo}
       />
+
+      {galleryOpen && (
+        <Gallery
+          designs={galleryDesigns}
+          onLoad={handleLoadDesign}
+          onDelete={handleDeleteDesign}
+          onToggleFavorite={handleToggleFavorite}
+          onClose={handleCloseGallery}
+        />
+      )}
     </div>
   );
 }

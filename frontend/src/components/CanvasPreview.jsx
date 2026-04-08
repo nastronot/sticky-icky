@@ -15,7 +15,7 @@ const ROTATION_RADIUS = 8;
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, selectedLayerId, onSelectLayer, onPatchLayer },
+  { layers, labelW, labelH, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
   ref,
 ) {
   const containerRef = useRef(null);
@@ -237,15 +237,45 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       interactionRef.current = null;
     };
 
+    const onDblClick = (e) => {
+      const pt = screenToCanvas(e);
+      const ls = layersRef.current;
+
+      // Hit-test image/text layers top-down (same as pointerdown).
+      for (let i = ls.length - 1; i >= 0; i--) {
+        const layer = ls[i];
+        if (!layer.visible) continue;
+        if (layer.type !== 'image' && layer.type !== 'text') continue;
+        if (hitBody(pt, layer)) {
+          onSelectLayer(layer.id);
+          if (layer.type === 'text') onRequestFocusText?.();
+          return;
+        }
+      }
+      // No image/text hit — fall back to the topmost visible Big Text. This
+      // makes Big Text "double-click anywhere to edit" since it doesn't
+      // participate in pointer hit-testing.
+      for (let i = ls.length - 1; i >= 0; i--) {
+        const layer = ls[i];
+        if (layer.visible && layer.type === 'bigtext') {
+          onSelectLayer(layer.id);
+          onRequestFocusText?.();
+          return;
+        }
+      }
+    };
+
     overlay.addEventListener('pointerdown', onPointerDown);
+    overlay.addEventListener('dblclick', onDblClick);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     return () => {
       overlay.removeEventListener('pointerdown', onPointerDown);
+      overlay.removeEventListener('dblclick', onDblClick);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [onSelectLayer, onPatchLayer]);
+  }, [onSelectLayer, onPatchLayer, onRequestFocusText]);
 
   const sizeStyle = {
     width: labelW * displayScale,

@@ -18,6 +18,7 @@ const PRESETS = [
 export default function LayerControls({
   selectedLayer,
   onLayerChange,
+  focusTextNonce,
   presetIdx,
   onPresetIdxChange,
   customW,
@@ -37,10 +38,10 @@ export default function LayerControls({
     <aside className="layer-controls">
       <div className="layer-controls-scroll">
         {selectedLayer?.type === 'bigtext' && (
-          <BigTextControls layer={selectedLayer} onChange={onLayerChange} />
+          <BigTextControls layer={selectedLayer} onChange={onLayerChange} focusTextNonce={focusTextNonce} />
         )}
         {selectedLayer?.type === 'text' && (
-          <TextControls layer={selectedLayer} onChange={onLayerChange} />
+          <TextControls layer={selectedLayer} onChange={onLayerChange} focusTextNonce={focusTextNonce} />
         )}
         {selectedLayer?.type === 'image' && (
           <ImageControls layer={selectedLayer} onChange={onLayerChange} />

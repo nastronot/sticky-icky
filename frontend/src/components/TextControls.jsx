@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 const FONTS = ['Arial Black', 'Impact', 'Courier New', 'Georgia'];
 
 const DITHER_ALGOS = [
@@ -11,14 +13,26 @@ const DITHER_ALGOS = [
 /** Per-free-text-layer controls. `onChange(patch)` patches the layer in App.
  *  Bounding-box width/height auto-correct from CanvasPreview after the next
  *  render-pass measures the text — they aren't edited from here. */
-export default function TextControls({ layer, onChange }) {
+export default function TextControls({ layer, onChange, focusTextNonce }) {
   const set = patch => onChange(patch);
+  const textareaRef = useRef(null);
+
+  // Focus + select the textarea when the parent bumps focusTextNonce
+  // (e.g. from a canvas double-click). Skip the initial 0.
+  useEffect(() => {
+    if (!focusTextNonce) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus();
+    ta.select();
+  }, [focusTextNonce]);
 
   return (
     <>
       <label className="control-group">
         <span>Text</span>
         <textarea
+          ref={textareaRef}
           value={layer.text}
           onChange={e => set({ text: e.target.value })}
           placeholder="Type something..."

@@ -130,6 +130,8 @@ export default function App() {
   const [darkness, setDarkness] = useState(15);
   const [speed, setSpeed] = useState(1);
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
+  const [focusTextNonce, setFocusTextNonce] = useState(0);
+  const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
 
   const preset = PRESETS[presetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
@@ -375,6 +377,7 @@ export default function App() {
       <LayerControls
         selectedLayer={selectedLayer}
         onLayerChange={patchSelectedLayer}
+        focusTextNonce={focusTextNonce}
         presetIdx={presetIdx}
         onPresetIdxChange={handlePresetIdxChange}
         customW={customW}
@@ -397,6 +400,7 @@ export default function App() {
         selectedLayerId={selectedLayerId}
         onSelectLayer={setSelectedLayerId}
         onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}
+        onRequestFocusText={requestFocusText}
       />
 
       <LayerPanel

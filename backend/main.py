@@ -60,7 +60,7 @@ async def print_label(req: PrintRequest):
         "\r\n"
         "N\r\n"
         "R0,0\r\n"
-        f"q{req.labelW}\r\n"
+        f"q{req.width}\r\n"
         f"Q{req.labelH},21\r\n"
         f"D{req.darkness}\r\n"
         f"S{req.speed}\r\n"
@@ -88,6 +88,7 @@ async def print_label(req: PrintRequest):
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             timeout=2,
+            rtscts=True,
         ) as ser:
             ser.write(payload_bytes)
             print(f"Wrote {len(payload_bytes)} bytes to serial")

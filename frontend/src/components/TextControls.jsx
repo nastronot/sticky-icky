@@ -134,6 +134,16 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
         </div>
       </div>
 
+      <div className="control-group">
+        <span>XOR composite</span>
+        <div className="btn-group">
+          <button
+            className={layer.xor !== false ? 'active' : ''}
+            onClick={() => set({ xor: layer.xor === false })}
+          >{layer.xor !== false ? 'On' : 'Off'}</button>
+        </div>
+      </div>
+
       <label className="control-group">
         <span>Dithering</span>
         <select value={layer.ditherAlgo} onChange={e => set({ ditherAlgo: e.target.value })}>

@@ -454,13 +454,24 @@ function xorComposite(ctx, labelW, labelH, layers, offscreenMap) {
     const src = offCtx.getImageData(0, 0, labelW, labelH);
     const srcData = src.data;
     const len = srcData.length;
-    for (let i = 0; i < len; i += 4) {
-      // Skip transparent and light source pixels — only opaque-and-dark
-      // pixels participate in the XOR flip.
-      if (srcData[i + 3] <= 128) continue;
-      if (srcData[i] >= 128) continue;
-      const j = i >> 2; // index into the Uint32 view
-      resultU32[j] = (resultData[i] < 128) ? WHITE_U32 : BLACK_U32;
+    if (layer.xor === false) {
+      // Overwrite mode: opaque-dark source pixels paint solid black on the
+      // destination, no flipping. Layer order matters — a top overwrite
+      // layer covers whatever is beneath it.
+      for (let i = 0; i < len; i += 4) {
+        if (srcData[i + 3] <= 128) continue;
+        if (srcData[i] >= 128) continue;
+        resultU32[i >> 2] = BLACK_U32;
+      }
+    } else {
+      // XOR mode (default): each opaque-dark source pixel flips the
+      // destination between black and white.
+      for (let i = 0; i < len; i += 4) {
+        if (srcData[i + 3] <= 128) continue;
+        if (srcData[i] >= 128) continue;
+        const j = i >> 2;
+        resultU32[j] = (resultData[i] < 128) ? WHITE_U32 : BLACK_U32;
+      }
     }
   }
 

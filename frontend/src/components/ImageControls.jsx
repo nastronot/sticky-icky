@@ -160,6 +160,16 @@ export default function ImageControls({ layer, onChange }) {
         </div>
       </div>
 
+      <div className="control-group">
+        <span>XOR composite</span>
+        <div className="btn-group">
+          <button
+            className={layer.xor !== false ? 'active' : ''}
+            onClick={() => set({ xor: layer.xor === false })}
+          >{layer.xor !== false ? 'On' : 'Off'}</button>
+        </div>
+      </div>
+
       <label className="control-group">
         <span>Brightness <em>{layer.threshold}</em></span>
         <input

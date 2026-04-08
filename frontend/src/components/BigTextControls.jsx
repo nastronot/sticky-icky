@@ -114,6 +114,16 @@ export default function BigTextControls({ layer, onChange, focusTextNonce }) {
         </div>
       </div>
 
+      <div className="control-group">
+        <span>XOR composite</span>
+        <div className="btn-group">
+          <button
+            className={layer.xor !== false ? 'active' : ''}
+            onClick={() => set({ xor: layer.xor === false })}
+          >{layer.xor !== false ? 'On' : 'Off'}</button>
+        </div>
+      </div>
+
       <label className="control-group">
         <span>Letter spacing <em>{layer.letterSpacing}px</em></span>
         <input

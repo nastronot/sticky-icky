@@ -27,6 +27,8 @@ export default function LayerControls({
   onCustomHChange,
   onPrint,
   printStatus,
+  copies,
+  onCopiesChange,
   onSave,
   saveStatus,
   onOpenGallery,
@@ -98,9 +100,24 @@ export default function LayerControls({
           <p className="status error">Save failed: {saveStatus.error}</p>
         )}
 
-        <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
-          {printStatus === 'printing' ? 'Printing…' : 'Print'}
-        </button>
+        <div className="print-row">
+          <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
+            {printStatus === 'printing'
+              ? (copies > 1 ? `Printing ${copies} copies…` : 'Printing…')
+              : 'Print'}
+          </button>
+          <input
+            type="number"
+            className="copies-input"
+            min={1}
+            max={99}
+            step={1}
+            value={copies}
+            onChange={e => onCopiesChange(Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || 1)))}
+            title="Number of copies"
+            aria-label="Copies"
+          />
+        </div>
 
         {printStatus === 'ok' && <p className="status ok">Sent to printer.</p>}
         {printStatus && typeof printStatus === 'object' && (

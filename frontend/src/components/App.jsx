@@ -156,6 +156,7 @@ export default function App() {
   const DARKNESS = 15;
   const SPEED = 1;
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
+  const [copies, setCopies] = useState(1);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -335,7 +336,7 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const body = encodePrintPayload(
-      imageData.data, canvas.width, canvas.height, labelW, labelH, DARKNESS, SPEED,
+      imageData.data, canvas.width, canvas.height, labelW, labelH, DARKNESS, SPEED, copies,
     );
     try {
       const res = await fetch('http://localhost:8765/print', {
@@ -352,7 +353,7 @@ export default function App() {
     } catch (err) {
       setPrintStatus({ error: err.message });
     }
-  }, [labelW, labelH]);
+  }, [labelW, labelH, copies]);
 
   const handlePresetIdxChange = useCallback((i) => {
     setPresetIdx(i);
@@ -602,6 +603,8 @@ export default function App() {
         onCustomHChange={setCustomH}
         onPrint={handlePrint}
         printStatus={printStatus}
+        copies={copies}
+        onCopiesChange={setCopies}
         onSave={handleSave}
         saveStatus={saveStatus}
         onOpenGallery={handleOpenGallery}

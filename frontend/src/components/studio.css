@@ -165,7 +165,38 @@
 
 /* Print button ============================================================= */
 
+.print-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.copies-input {
+  width: 48px;
+  padding: 6px 4px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: inherit;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.copies-input::-webkit-outer-spin-button,
+.copies-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.copies-input:focus {
+  outline: none;
+  border-color: #888;
+}
+
 .print-btn {
+  flex: 1;
   padding: 10px;
   background: #3a3a3a;
   border: 1px solid #666;

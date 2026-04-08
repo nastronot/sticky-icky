@@ -3,6 +3,7 @@ import { encodePrintPayload } from '../utils/epl2.js';
 import './BigText.css';
 
 const PRESETS = [
+  { label: '3.00 × 2.00"', w: 570, h: 406 },
   { label: '4.00 × 2.00"', w: 832, h: 406 },
   { label: '4.00 × 3.00"', w: 832, h: 609 },
   { label: '2.25 × 2.00"', w: 457, h: 406 },

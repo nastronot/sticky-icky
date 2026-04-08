@@ -59,12 +59,11 @@ async def print_label(req: PrintRequest):
     header = (
         "\r\n"
         "N\r\n"
-        "R120,0\r\n"
         f"q{req.width}\r\n"
         f"Q{req.labelH},21\r\n"
         f"D{req.darkness}\r\n"
         f"S{req.speed}\r\n"
-        f"GW0,0,{width_bytes},{req.height}\r\n"
+        f"GW8,0,{width_bytes},{req.height}\r\n"
     ).encode("ascii")
     footer = b"P1\r\n"
     payload_bytes = header + inverted + footer

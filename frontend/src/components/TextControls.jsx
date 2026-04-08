@@ -3,6 +3,7 @@ import {
   Bold, Italic,
   AlignLeft, AlignCenter, AlignRight,
   FlipHorizontal2, FlipVertical2,
+  CaseUpper, AArrowDown,
 } from 'lucide-react';
 
 const FONTS = ['Arial Black', 'Impact', 'Courier New', 'Georgia'];
@@ -82,11 +83,15 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
           <button
             className={layer.allCaps ? 'active' : ''}
             onClick={() => set({ allCaps: !layer.allCaps, smallCaps: false })}
-          >All Caps</button>
+            title="All caps"
+            aria-label="All caps"
+          ><CaseUpper size={16} /></button>
           <button
             className={layer.smallCaps ? 'active' : ''}
             onClick={() => set({ smallCaps: !layer.smallCaps, allCaps: false })}
-          >Small Caps</button>
+            title="Small caps"
+            aria-label="Small caps"
+          ><AArrowDown size={16} /></button>
           <button
             className={layer.italic ? 'active' : ''}
             onClick={() => set({ italic: !layer.italic })}

@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { Bold, Italic, AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
+import {
+  Bold, Italic,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
+  CaseUpper, AArrowDown,
+} from 'lucide-react';
 
 const FONTS = ['Arial Black', 'Impact', 'Courier New', 'Georgia'];
 
@@ -8,6 +13,12 @@ const H_ALIGN_ICONS = {
   center:  AlignCenter,
   right:   AlignRight,
   justify: AlignJustify,
+};
+
+const V_ALIGN_ICONS = {
+  top:    AlignVerticalJustifyStart,
+  middle: AlignVerticalJustifyCenter,
+  bottom: AlignVerticalJustifyEnd,
 };
 
 const DITHER_ALGOS = [
@@ -78,11 +89,15 @@ export default function BigTextControls({ layer, onChange, focusTextNonce }) {
           <button
             className={layer.allCaps ? 'active' : ''}
             onClick={() => set({ allCaps: !layer.allCaps, smallCaps: false })}
-          >All Caps</button>
+            title="All caps"
+            aria-label="All caps"
+          ><CaseUpper size={16} /></button>
           <button
             className={layer.smallCaps ? 'active' : ''}
             onClick={() => set({ smallCaps: !layer.smallCaps, allCaps: false })}
-          >Small Caps</button>
+            title="Small caps"
+            aria-label="Small caps"
+          ><AArrowDown size={16} /></button>
           <button
             className={layer.italic ? 'active' : ''}
             onClick={() => set({ italic: !layer.italic })}
@@ -113,15 +128,18 @@ export default function BigTextControls({ layer, onChange, focusTextNonce }) {
       <div className="control-group">
         <span>Vertical</span>
         <div className="btn-group">
-          {['top', 'middle', 'bottom'].map(a => (
-            <button
-              key={a}
-              className={layer.vAlign === a ? 'active' : ''}
-              onClick={() => set({ vAlign: a })}
-            >
-              {a[0].toUpperCase() + a.slice(1)}
-            </button>
-          ))}
+          {['top', 'middle', 'bottom'].map(a => {
+            const Icon = V_ALIGN_ICONS[a];
+            return (
+              <button
+                key={a}
+                className={layer.vAlign === a ? 'active' : ''}
+                onClick={() => set({ vAlign: a })}
+                title={`Align ${a}`}
+                aria-label={`Align ${a}`}
+              ><Icon size={16} /></button>
+            );
+          })}
         </div>
       </div>
 

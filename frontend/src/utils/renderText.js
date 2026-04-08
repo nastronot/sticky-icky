@@ -74,7 +74,6 @@ export async function renderTextLayer(canvas, layer) {
 
   applyLayerFont(ctx, layer);
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = 'black';
 
   // Centered transform around the layer's center; we draw lines centered on
   // (0, 0) so flipH / flipV mirror about the bounding-box center.
@@ -85,6 +84,18 @@ export async function renderTextLayer(canvas, layer) {
   ctx.translate(cx, cy);
   ctx.rotate((layer.rotation * Math.PI) / 180);
   ctx.scale(layer.flipH ? -1 : 1, layer.flipV ? -1 : 1);
+
+  // Invert mode: paint a black rectangle the size of the bounding box (in
+  // local space, so it inherits the layer's rotation/flip) before drawing
+  // text in white. The rectangle is the per-text-layer "background" — only
+  // covers the layer's footprint, unlike Big Text which fills the canvas.
+  if (layer.invert) {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(-m.width / 2, -m.height / 2, m.width, m.height);
+    ctx.fillStyle = 'white';
+  } else {
+    ctx.fillStyle = 'black';
+  }
 
   const startY = -m.height / 2;
   for (let i = 0; i < m.lines.length; i++) {

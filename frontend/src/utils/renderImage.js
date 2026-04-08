@@ -72,6 +72,22 @@ export function renderImageLayer(canvas, layer, cache) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(source, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
   ctx.restore();
+
+  // Invert: swap black and white on the opaque pixels of the offscreen.
+  // Transparent pixels stay transparent so the layer's footprint doesn't
+  // grow into the unused canvas area.
+  if (layer.invert) {
+    const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] <= 128) continue;
+      const v = d[i] < 128 ? 255 : 0;
+      d[i]     = v;
+      d[i + 1] = v;
+      d[i + 2] = v;
+    }
+    ctx.putImageData(id, 0, 0);
+  }
 }
 
 /** Drop any cache entries whose layer ids are no longer in `liveIds`. */

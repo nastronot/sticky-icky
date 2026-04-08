@@ -35,13 +35,21 @@ function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, i
   return best;
 }
 
-/** Paint the white background and (if any) the fitted text on `canvas`. */
-function drawText(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing) {
+/** Paint the (transparent or solid-black) background and the fitted text on
+ *  `canvas`. When `invert` is true the canvas is filled solid black and the
+ *  text is drawn in white — Big Text fills the whole label, so the entire
+ *  canvas serves as the inverted layer's bounding box. */
+function drawText(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
   const H = canvas.height;
 
-  ctx.clearRect(0, 0, W, H);
+  if (invert) {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.clearRect(0, 0, W, H);
+  }
 
   if (!displayText.trim()) return;
 
@@ -49,7 +57,7 @@ function drawText(canvas, displayText, originalText, font, bold, italic, smallCa
   if (!fit) return;
 
   applyFont(ctx, fit.size, font, bold, italic);
-  ctx.fillStyle = 'black';
+  ctx.fillStyle = invert ? 'white' : 'black';
   ctx.textBaseline = 'alphabetic';
 
   const maxW = W - PAD * 2;
@@ -95,14 +103,14 @@ function drawText(canvas, displayText, originalText, font, bold, italic, smallCa
  * caller can composite after rendering completes.
  */
 export async function renderBigTextLayer(canvas, layer) {
-  const { text, font, bold, italic, smallCaps, allCaps, hAlign, vAlign, letterSpacing, ditherAlgo, ditherAmount } = layer;
+  const { text, font, bold, italic, smallCaps, allCaps, hAlign, vAlign, letterSpacing, invert, ditherAlgo, ditherAmount } = layer;
   const displayText = (allCaps || smallCaps) ? text.toUpperCase() : text;
 
   // Await font load before measuring/drawing to avoid stale glyph metrics.
   const fontSpec = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}40px "${font}"`;
   await document.fonts.load(fontSpec);
 
-  drawText(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing);
+  drawText(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert);
 
   if (ditherAlgo !== 'none' && ditherAmount > 0) {
     const ctx = canvas.getContext('2d');

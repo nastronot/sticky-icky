@@ -124,6 +124,16 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
         </div>
       </div>
 
+      <div className="control-group">
+        <span>Invert</span>
+        <div className="btn-group">
+          <button
+            className={layer.invert ? 'active' : ''}
+            onClick={() => set({ invert: !layer.invert })}
+          >{layer.invert ? 'On' : 'Off'}</button>
+        </div>
+      </div>
+
       <label className="control-group">
         <span>Dithering</span>
         <select value={layer.ditherAlgo} onChange={e => set({ ditherAlgo: e.target.value })}>

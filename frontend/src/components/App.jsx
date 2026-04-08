@@ -19,6 +19,7 @@ const DEFAULT_BIGTEXT = {
   hAlign: 'center',
   vAlign: 'middle',
   letterSpacing: -2,
+  invert: false,
   ditherAlgo: 'none',
   ditherAmount: 50,
 };
@@ -61,6 +62,7 @@ function makeTextLayer(labelW, labelH) {
     height: m.height,
     x: Math.round((labelW - m.width) / 2),
     y: Math.round((labelH - m.height) / 2),
+    invert: false,
     ditherAlgo: 'none',
     ditherAmount: 50,
   };
@@ -112,6 +114,7 @@ function makeImageLayer(file, originalImage, labelW, labelH) {
     flipH: false,
     flipV: false,
     lockAspect: false,
+    invert: false,
     ditherAlgo: 'floydSteinberg',
     ditherAmount: 50,
     threshold: 128,

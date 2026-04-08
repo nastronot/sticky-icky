@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encodeGW } from './epl2.js';
+import { encodePrintPayload } from './epl2.js';
 
 function makeRGBA(pixels) {
   // pixels: array of [r, g, b, a]
@@ -13,58 +13,87 @@ function makeRGBA(pixels) {
   return data;
 }
 
-function parseHeader(result) {
-  const text = new TextDecoder().decode(result);
-  const headerEnd = text.indexOf('\r\n');
-  const header = text.slice(0, headerEnd);
-  const bitmapOffset = headerEnd + 2;
-  return { header, bitmapOffset };
+function bitmapBytes(payload) {
+  const bin = atob(payload.bitmap);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
-describe('encodeGW', () => {
-  it('8×1 all-black: width_bytes=1, bitmap=0xFF', () => {
-    const pixels = Array(8).fill([0, 0, 0, 255]);
-    const imageData = makeRGBA(pixels);
-    const result = encodeGW(imageData, 8, 1);
-    const { header, bitmapOffset } = parseHeader(result);
+const BLACK = [0, 0, 0, 255];
+const WHITE = [255, 255, 255, 255];
 
-    expect(header).toBe('GW0,0,1,1');
-    expect(result[bitmapOffset]).toBe(0xff);
-    expect(result.length).toBe(bitmapOffset + 1);
+describe('encodePrintPayload', () => {
+  it('8×1 all-black: width_bytes=1, bitmap=0xFF', () => {
+    const data = makeRGBA(Array(8).fill(BLACK));
+    const payload = encodePrintPayload(data, 8, 1, 100, 50);
+    const bytes = bitmapBytes(payload);
+    expect(bytes.length).toBe(1);
+    expect(bytes[0]).toBe(0xff);
+    expect(payload.width).toBe(8);
+    expect(payload.height).toBe(1);
+    expect(payload.labelW).toBe(100);
+    expect(payload.labelH).toBe(50);
   });
 
   it('8×1 all-white: bitmap=0x00', () => {
-    const pixels = Array(8).fill([255, 255, 255, 255]);
-    const imageData = makeRGBA(pixels);
-    const result = encodeGW(imageData, 8, 1);
-    const { header, bitmapOffset } = parseHeader(result);
-
-    expect(header).toBe('GW0,0,1,1');
-    expect(result[bitmapOffset]).toBe(0x00);
+    const data = makeRGBA(Array(8).fill(WHITE));
+    const payload = encodePrintPayload(data, 8, 1, 100, 50);
+    const bytes = bitmapBytes(payload);
+    expect(bytes.length).toBe(1);
+    expect(bytes[0]).toBe(0x00);
   });
 
-  it('16×1 already-aligned: width_bytes=2, no extra padding', () => {
-    const pixels = Array(16).fill([0, 0, 0, 255]);
-    const imageData = makeRGBA(pixels);
-    const result = encodeGW(imageData, 16, 1);
-    const { header, bitmapOffset } = parseHeader(result);
-
-    expect(header).toBe('GW0,0,2,1');
-    expect(result[bitmapOffset]).toBe(0xff);
-    expect(result[bitmapOffset + 1]).toBe(0xff);
-    expect(result.length).toBe(bitmapOffset + 2);
+  it('16×1 already-aligned all-black: width_bytes=2', () => {
+    const data = makeRGBA(Array(16).fill(BLACK));
+    const payload = encodePrintPayload(data, 16, 1, 100, 50);
+    const bytes = bitmapBytes(payload);
+    expect(bytes.length).toBe(2);
+    expect(bytes[0]).toBe(0xff);
+    expect(bytes[1]).toBe(0xff);
+    expect(payload.width).toBe(16);
   });
 
-  it('9×1 unaligned: padded to 16 bits, width_bytes=2', () => {
-    // 9 black pixels → first byte 0xFF, second byte MSB set (0x80), rest 0
-    const pixels = Array(9).fill([0, 0, 0, 255]);
-    const imageData = makeRGBA(pixels);
-    const result = encodeGW(imageData, 9, 1);
-    const { header, bitmapOffset } = parseHeader(result);
+  it('9×1 unaligned all-black: padded to 16 bits, second byte has only MSB set', () => {
+    const data = makeRGBA(Array(9).fill(BLACK));
+    const payload = encodePrintPayload(data, 9, 1, 100, 50);
+    const bytes = bitmapBytes(payload);
+    expect(bytes.length).toBe(2);
+    expect(bytes[0]).toBe(0xff);
+    expect(bytes[1]).toBe(0x80); // bit 8 set, bits 9..15 are padding (white)
+    expect(payload.width).toBe(16); // padded width
+  });
 
-    expect(header).toBe('GW0,0,2,1');
-    expect(result[bitmapOffset]).toBe(0xff);
-    expect(result[bitmapOffset + 1]).toBe(0x80);
-    expect(result.length).toBe(bitmapOffset + 2);
+  it('mixed pattern: black-white-black-white...0xAA', () => {
+    const pixels = [];
+    for (let i = 0; i < 8; i++) pixels.push(i % 2 === 0 ? BLACK : WHITE);
+    const data = makeRGBA(pixels);
+    const payload = encodePrintPayload(data, 8, 1, 100, 50);
+    const bytes = bitmapBytes(payload);
+    expect(bytes[0]).toBe(0xaa); // 10101010
+  });
+
+  it('darkness and speed default to 12 and 1', () => {
+    const data = makeRGBA(Array(8).fill(WHITE));
+    const payload = encodePrintPayload(data, 8, 1, 100, 50);
+    expect(payload.darkness).toBe(12);
+    expect(payload.speed).toBe(1);
+  });
+
+  it('darkness and speed pass through when explicitly set', () => {
+    const data = makeRGBA(Array(8).fill(WHITE));
+    const payload = encodePrintPayload(data, 8, 1, 100, 50, 15, 3);
+    expect(payload.darkness).toBe(15);
+    expect(payload.speed).toBe(3);
+  });
+
+  it('multi-row 8×2: each row contributes one byte', () => {
+    // Row 0: all black, row 1: all white
+    const data = makeRGBA([...Array(8).fill(BLACK), ...Array(8).fill(WHITE)]);
+    const payload = encodePrintPayload(data, 8, 2, 100, 50);
+    const bytes = bitmapBytes(payload);
+    expect(bytes.length).toBe(2);
+    expect(bytes[0]).toBe(0xff);
+    expect(bytes[1]).toBe(0x00);
   });
 });

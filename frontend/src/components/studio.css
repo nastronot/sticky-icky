@@ -126,6 +126,15 @@
   font-size: 12px;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 26px;
+}
+
+.btn-group button svg {
+  flex-shrink: 0;
 }
 
 .btn-group button:hover:not(:disabled) {
@@ -206,6 +215,10 @@
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .print-btn:hover:not(:disabled) {
@@ -228,6 +241,10 @@
   font-family: inherit;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 
 .secondary-btn:hover {
@@ -346,7 +363,7 @@
 }
 
 .layer-vis {
-  width: 18px;
+  width: 22px;
   background: none;
   border: none;
   color: #aaa;
@@ -354,6 +371,9 @@
   cursor: pointer;
   padding: 0;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .layer-vis:hover { color: #fff; }
@@ -378,16 +398,18 @@
 }
 
 .layer-row-actions button {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   background: none;
   border: 1px solid transparent;
   border-radius: 3px;
   color: #888;
-  font-size: 9px;
   cursor: pointer;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .layer-row-actions button:hover:not(:disabled) {
@@ -465,8 +487,10 @@
   border: 1px solid #444;
   border-radius: 4px;
   color: #aaa;
-  font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .gallery-close:hover { background: #2e2e2e; color: #fff; }
@@ -554,16 +578,18 @@
 .gallery-card-del {
   position: absolute;
   top: 6px;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   color: #ccc;
-  font-size: 11px;
   cursor: pointer;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .gallery-card-fav { left: 6px; }

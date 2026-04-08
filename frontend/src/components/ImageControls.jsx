@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { FlipHorizontal2, FlipVertical2, Lock, Unlock, RotateCcw } from 'lucide-react';
 
 const DITHER_ALGOS = [
   { id: 'none',           label: 'None' },
@@ -110,17 +111,22 @@ export default function ImageControls({ layer, onChange }) {
           <button
             className={lockAspect ? 'active' : ''}
             onClick={() => set({ lockAspect: true })}
-          >Lock</button>
+            title="Lock aspect ratio"
+            aria-label="Lock aspect ratio"
+          ><Lock size={16} /></button>
           <button
             className={!lockAspect ? 'active' : ''}
             onClick={() => set({ lockAspect: false })}
-          >Free</button>
+            title="Free aspect ratio"
+            aria-label="Free aspect ratio"
+          ><Unlock size={16} /></button>
           <button
             onClick={() => set({
               height: Math.round(layer.width * (originalHeight / originalWidth)),
             })}
             title="Snap back to the original image's aspect ratio (height follows current width)"
-          >Reset</button>
+            aria-label="Reset aspect ratio"
+          ><RotateCcw size={16} /></button>
         </div>
       </div>
 
@@ -144,13 +150,13 @@ export default function ImageControls({ layer, onChange }) {
             onClick={() => set({ flipH: !layer.flipH })}
             title="Flip horizontal"
             aria-label="Flip horizontal"
-          >⇔</button>
+          ><FlipHorizontal2 size={16} /></button>
           <button
             className={layer.flipV ? 'active' : ''}
             onClick={() => set({ flipV: !layer.flipV })}
             title="Flip vertical"
             aria-label="Flip vertical"
-          >⇕</button>
+          ><FlipVertical2 size={16} /></button>
         </div>
       </div>
 

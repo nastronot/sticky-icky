@@ -1,6 +1,17 @@
 import { useEffect, useRef } from 'react';
+import {
+  Bold, Italic,
+  AlignLeft, AlignCenter, AlignRight,
+  FlipHorizontal2, FlipVertical2,
+} from 'lucide-react';
 
 const FONTS = ['Arial Black', 'Impact', 'Courier New', 'Georgia'];
+
+const H_ALIGN_ICONS = {
+  left:   AlignLeft,
+  center: AlignCenter,
+  right:  AlignRight,
+};
 
 const DITHER_ALGOS = [
   { id: 'none',           label: 'None' },
@@ -52,8 +63,16 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
       <div className="control-group">
         <span>Weight</span>
         <div className="btn-group">
-          <button className={layer.bold ? 'active' : ''} onClick={() => set({ bold: true })}>Bold</button>
-          <button className={!layer.bold ? 'active' : ''} onClick={() => set({ bold: false })}>Regular</button>
+          <button
+            className={layer.bold ? 'active' : ''}
+            onClick={() => set({ bold: true })}
+            title="Bold"
+            aria-label="Bold"
+          ><Bold size={16} /></button>
+          <button
+            className={!layer.bold ? 'active' : ''}
+            onClick={() => set({ bold: false })}
+          >Regular</button>
         </div>
       </div>
 
@@ -71,22 +90,27 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
           <button
             className={layer.italic ? 'active' : ''}
             onClick={() => set({ italic: !layer.italic })}
-          >Italic</button>
+            title="Italic"
+            aria-label="Italic"
+          ><Italic size={16} /></button>
         </div>
       </div>
 
       <div className="control-group">
         <span>Horizontal</span>
         <div className="btn-group">
-          {['left', 'center', 'right'].map(a => (
-            <button
-              key={a}
-              className={(layer.hAlign ?? 'left') === a ? 'active' : ''}
-              onClick={() => set({ hAlign: a })}
-            >
-              {a[0].toUpperCase() + a.slice(1)}
-            </button>
-          ))}
+          {['left', 'center', 'right'].map(a => {
+            const Icon = H_ALIGN_ICONS[a];
+            return (
+              <button
+                key={a}
+                className={(layer.hAlign ?? 'left') === a ? 'active' : ''}
+                onClick={() => set({ hAlign: a })}
+                title={`Align ${a}`}
+                aria-label={`Align ${a}`}
+              ><Icon size={16} /></button>
+            );
+          })}
         </div>
       </div>
 
@@ -153,13 +177,13 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
             onClick={() => set({ flipH: !layer.flipH })}
             title="Flip horizontal"
             aria-label="Flip horizontal"
-          >⇔</button>
+          ><FlipHorizontal2 size={16} /></button>
           <button
             className={layer.flipV ? 'active' : ''}
             onClick={() => set({ flipV: !layer.flipV })}
             title="Flip vertical"
             aria-label="Flip vertical"
-          >⇕</button>
+          ><FlipVertical2 size={16} /></button>
         </div>
       </div>
 

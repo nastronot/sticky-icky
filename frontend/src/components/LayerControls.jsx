@@ -1,3 +1,4 @@
+import { FilePlus, Save, FolderOpen, Printer } from 'lucide-react';
 import BigTextControls from './BigTextControls.jsx';
 import ImageControls from './ImageControls.jsx';
 import TextControls from './TextControls.jsx';
@@ -91,9 +92,15 @@ export default function LayerControls({
         )}
 
         <div className="btn-group">
-          <button type="button" className="secondary-btn" onClick={onNew}>New</button>
-          <button type="button" className="secondary-btn" onClick={onSave}>Save</button>
-          <button type="button" className="secondary-btn" onClick={onOpenGallery}>Load</button>
+          <button type="button" className="secondary-btn" onClick={onNew}>
+            <FilePlus size={14} /> New
+          </button>
+          <button type="button" className="secondary-btn" onClick={onSave}>
+            <Save size={14} /> Save
+          </button>
+          <button type="button" className="secondary-btn" onClick={onOpenGallery}>
+            <FolderOpen size={14} /> Load
+          </button>
         </div>
         {saveStatus === 'saved' && <p className="status ok">Saved.</p>}
         {saveStatus && typeof saveStatus === 'object' && (
@@ -102,9 +109,12 @@ export default function LayerControls({
 
         <div className="print-row">
           <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
-            {printStatus === 'printing'
-              ? (copies > 1 ? `Printing ${copies} copies…` : 'Printing…')
-              : 'Print'}
+            <Printer size={16} />
+            <span>
+              {printStatus === 'printing'
+                ? (copies > 1 ? `Printing ${copies} copies…` : 'Printing…')
+                : 'Print'}
+            </span>
           </button>
           <input
             type="number"

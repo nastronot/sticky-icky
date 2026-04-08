@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Eye, EyeOff, Copy, Trash2, Plus } from 'lucide-react';
 
 /** Right-sidebar layer list. All three layer types (Big Text, Text, Image)
  *  are addable. Reordering is done via HTML5 drag-and-drop on the rows. */
@@ -95,7 +96,7 @@ export default function LayerPanel({
                   aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
                   onClick={e => { e.stopPropagation(); onToggleVisibility(layer.id); }}
                 >
-                  {layer.visible ? '●' : '○'}
+                  {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                 </button>
                 <span className="layer-name" title={layer.name}>{layer.name}</span>
                 <div className="layer-row-actions">
@@ -104,14 +105,14 @@ export default function LayerPanel({
                     aria-label="Duplicate layer"
                     title="Duplicate"
                     onClick={e => { e.stopPropagation(); onDuplicate(layer.id); }}
-                  >⧉</button>
+                  ><Copy size={14} /></button>
                   <button
                     type="button"
                     aria-label="Delete layer"
                     title="Delete"
                     disabled={layers.length === 1}
                     onClick={e => { e.stopPropagation(); onDelete(layer.id); }}
-                  >✕</button>
+                  ><Trash2 size={14} /></button>
                 </div>
               </div>
             </li>
@@ -123,9 +124,9 @@ export default function LayerPanel({
       <div className="layer-add">
         <span className="layer-add-label">Add layer</span>
         <div className="btn-group btn-group-vert">
-          <button type="button" onClick={onAddBigText}>Big Text</button>
-          <button type="button" onClick={onAddText}>Text</button>
-          <button type="button" onClick={handleAddImageClick}>Image</button>
+          <button type="button" onClick={onAddBigText}><Plus size={14} /> Big Text</button>
+          <button type="button" onClick={onAddText}><Plus size={14} /> Text</button>
+          <button type="button" onClick={handleAddImageClick}><Plus size={14} /> Image</button>
         </div>
         <input
           ref={fileInputRef}

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Star, Trash2, X } from 'lucide-react';
 
 /**
  * Saved-design gallery overlay. Shows favorites first, then most-recent.
@@ -25,7 +26,9 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
       <div className="gallery">
         <div className="gallery-header">
           <h2>Saved designs</h2>
-          <button type="button" className="gallery-close" onClick={onClose}>✕</button>
+          <button type="button" className="gallery-close" onClick={onClose} aria-label="Close gallery">
+            <X size={16} />
+          </button>
         </div>
         {sorted.length === 0 ? (
           <p className="gallery-empty">No saved designs yet. Use Save in the left sidebar.</p>
@@ -49,7 +52,9 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
                   className={`gallery-card-fav ${design.favorite ? 'on' : ''}`}
                   aria-label={design.favorite ? 'Unfavorite' : 'Favorite'}
                   onClick={e => { e.stopPropagation(); onToggleFavorite(design.id); }}
-                >★</button>
+                >
+                  <Star size={14} fill={design.favorite ? 'currentColor' : 'none'} />
+                </button>
                 <button
                   type="button"
                   className="gallery-card-del"
@@ -58,7 +63,9 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
                     e.stopPropagation();
                     if (window.confirm(`Delete "${design.name}"?`)) onDelete(design.id);
                   }}
-                >✕</button>
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             ))}
           </div>

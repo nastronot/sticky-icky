@@ -92,14 +92,14 @@ export default function LayerControls({
         )}
 
         <div className="btn-group">
-          <button type="button" className="secondary-btn" onClick={onNew}>
-            <FilePlus size={14} /> New
+          <button type="button" className="secondary-btn" onClick={onNew} title="New" aria-label="New">
+            <FilePlus size={16} />
           </button>
-          <button type="button" className="secondary-btn" onClick={onSave}>
-            <Save size={14} /> Save
+          <button type="button" className="secondary-btn" onClick={onSave} title="Save" aria-label="Save">
+            <Save size={16} />
           </button>
-          <button type="button" className="secondary-btn" onClick={onOpenGallery}>
-            <FolderOpen size={14} /> Load
+          <button type="button" className="secondary-btn" onClick={onOpenGallery} title="Load" aria-label="Load">
+            <FolderOpen size={16} />
           </button>
         </div>
         {saveStatus === 'saved' && <p className="status ok">Saved.</p>}

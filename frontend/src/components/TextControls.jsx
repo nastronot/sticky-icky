@@ -73,7 +73,9 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
           <button
             className={!layer.bold ? 'active' : ''}
             onClick={() => set({ bold: false })}
-          >Regular</button>
+            title="Regular"
+            aria-label="Regular weight"
+          ><span className="weight-regular">B</span></button>
         </div>
       </div>
 

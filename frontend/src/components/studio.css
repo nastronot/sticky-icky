@@ -137,6 +137,13 @@
   flex-shrink: 0;
 }
 
+.weight-regular {
+  font-family: serif;
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1;
+}
+
 .btn-group button:hover:not(:disabled) {
   background: #2e2e2e;
   color: #e0e0e0;

@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { renderBigTextLayer } from '../utils/renderBigText.js';
 import { renderImageLayer, makeDitherCache, pruneDitherCache } from '../utils/renderImage.js';
+import { renderTextLayer } from '../utils/renderText.js';
 
 // Visual sizing for selection chrome (canvas pixel space — scaled with the
 // rest of the canvas via displayScale).
@@ -97,6 +98,15 @@ const CanvasPreview = forwardRef(function CanvasPreview(
           await renderBigTextLayer(off, layer);
         } else if (layer.type === 'image') {
           renderImageLayer(off, layer, ditherCache);
+        } else if (layer.type === 'text') {
+          const measured = await renderTextLayer(off, layer);
+          if (cancelled) return;
+          // Self-correct stale bounding-box dims after fonts load. Stable
+          // after one extra render: next pass measures the same dims and
+          // skips the patch.
+          if (measured.width !== layer.width || measured.height !== layer.height) {
+            onPatchLayer(layer.id, { width: measured.width, height: measured.height });
+          }
         }
         lastMap.set(layer.id, layer);
       }
@@ -122,7 +132,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         const octx = overlay.getContext('2d');
         octx.clearRect(0, 0, overlay.width, overlay.height);
         const sel = layers.find(l => l.id === selectedLayerId);
-        if (sel?.type === 'image' && sel.visible) drawSelectionChrome(octx, sel);
+        if ((sel?.type === 'image' || sel?.type === 'text') && sel.visible) drawSelectionChrome(octx, sel);
       }
     })();
 
@@ -150,10 +160,11 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       const ls = layersRef.current;
       const selectedId = selectedRef.current;
 
-      // 1. If a handle on the currently-selected image layer was hit, start
-      //    that interaction immediately (handles often poke outside the body).
+      // 1. If a handle on the currently-selected image/text layer was hit,
+      //    start that interaction immediately (handles often poke outside
+      //    the body).
       const selected = ls.find(l => l.id === selectedId);
-      if (selected?.type === 'image' && selected.visible) {
+      if ((selected?.type === 'image' || selected?.type === 'text') && selected.visible) {
         const handle = hitHandle(pt, selected);
         if (handle === 'rotate') {
           beginInteraction(overlay, e, { mode: 'rotate', layer: selected, start: pt });
@@ -165,10 +176,12 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         }
       }
 
-      // 2. Hit-test all visible image layers top-to-bottom for a body click.
+      // 2. Hit-test all visible image and text layers top-to-bottom for a
+      //    body click.
       for (let i = ls.length - 1; i >= 0; i--) {
         const layer = ls[i];
-        if (!layer.visible || layer.type !== 'image') continue;
+        if (!layer.visible) continue;
+        if (layer.type !== 'image' && layer.type !== 'text') continue;
         if (hitBody(pt, layer)) {
           if (layer.id !== selectedId) onSelectLayer(layer.id);
           beginInteraction(overlay, e, { mode: 'move', layer, start: pt });
@@ -203,7 +216,21 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         const locked = !!layer.lockAspect;
         const constrain = e.shiftKey ? !locked : locked;
         const next = computeResize(layer, ix.handle, dx, dy, constrain);
-        if (next) onPatchLayer(layer.id, next);
+        if (!next) return;
+
+        if (layer.type === 'text') {
+          // Text layers don't stretch — they scale fontSize. Use whichever
+          // axis the user dragged more proportionally so edge handles still
+          // do something useful. Width/height self-correct from the next
+          // render once measureTextLayer runs against the new font size.
+          const scaleW = layer.width  > 0 ? next.width  / layer.width  : 1;
+          const scaleH = layer.height > 0 ? next.height / layer.height : 1;
+          const scale = Math.abs(scaleW - 1) >= Math.abs(scaleH - 1) ? scaleW : scaleH;
+          const newFontSize = Math.max(4, layer.fontSize * scale);
+          onPatchLayer(layer.id, { fontSize: newFontSize, x: next.x, y: next.y });
+        } else {
+          onPatchLayer(layer.id, next);
+        }
       } else if (ix.mode === 'rotate') {
         const cx = layer.x + layer.width / 2;
         const cy = layer.y + layer.height / 2;

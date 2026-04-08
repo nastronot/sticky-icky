@@ -3,6 +3,7 @@ import { encodePrintPayload } from '../utils/epl2.js';
 import CanvasPreview from './CanvasPreview.jsx';
 import LayerControls, { PRESETS } from './LayerControls.jsx';
 import LayerPanel from './LayerPanel.jsx';
+import { measureTextLayer } from '../utils/renderText.js';
 import './studio.css';
 
 const DEFAULT_BIGTEXT = {
@@ -29,6 +30,39 @@ function makeBigTextLayer() {
     ...DEFAULT_BIGTEXT,
     id: `bigtext-${Date.now()}-${n}`,
     name: `Big Text ${n}`,
+  };
+}
+
+let textSeq = 0;
+function makeTextLayer(labelW, labelH) {
+  const n = ++textSeq;
+  const proto = {
+    type: 'text',
+    text: 'Text',
+    font: 'Arial Black',
+    bold: true,
+    italic: false,
+    fontSize: 40,
+    rotation: 0,
+    flipH: false,
+    flipV: false,
+    x: 0,
+    y: 0,
+  };
+  // Measure synchronously so the initial bounding box is roughly correct.
+  // CanvasPreview will refine it on the first render once fonts are loaded.
+  const m = measureTextLayer(proto);
+  return {
+    id: `text-${Date.now()}-${n}`,
+    name: `Text ${n}`,
+    visible: true,
+    ...proto,
+    width: m.width,
+    height: m.height,
+    x: Math.round((labelW - m.width) / 2),
+    y: Math.round((labelH - m.height) / 2),
+    ditherAlgo: 'none',
+    ditherAmount: 50,
   };
 }
 
@@ -114,6 +148,12 @@ export default function App() {
     setLayers(ls => [...ls, layer]);
     setSelectedLayerId(layer.id);
   }, []);
+
+  const addText = useCallback(() => {
+    const layer = makeTextLayer(labelW, labelH);
+    setLayers(ls => [...ls, layer]);
+    setSelectedLayerId(layer.id);
+  }, [labelW, labelH]);
 
   const addImage = useCallback(async (file) => {
     try {
@@ -217,6 +257,7 @@ export default function App() {
         selectedLayerId={selectedLayerId}
         onSelect={setSelectedLayerId}
         onAddBigText={addBigText}
+        onAddText={addText}
         onAddImage={addImage}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}

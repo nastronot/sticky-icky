@@ -1,14 +1,13 @@
 import { useRef } from 'react';
 
-/**
- * Right-sidebar layer list. Big Text and Image are addable; plain Text is
- * still a placeholder for a future phase.
- */
+/** Right-sidebar layer list. All three layer types (Big Text, Text, Image)
+ *  are addable. */
 export default function LayerPanel({
   layers,
   selectedLayerId,
   onSelect,
   onAddBigText,
+  onAddText,
   onAddImage,
   onToggleVisibility,
   onDelete,
@@ -75,7 +74,7 @@ export default function LayerPanel({
         <span className="layer-add-label">Add layer</span>
         <div className="btn-group btn-group-vert">
           <button type="button" onClick={onAddBigText}>Big Text</button>
-          <button type="button" disabled title="Coming soon">Text</button>
+          <button type="button" onClick={onAddText}>Text</button>
           <button type="button" onClick={handleAddImageClick}>Image</button>
         </div>
         <input

@@ -61,11 +61,46 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
         <span>Style</span>
         <div className="btn-group">
           <button
+            className={layer.allCaps ? 'active' : ''}
+            onClick={() => set({ allCaps: !layer.allCaps, smallCaps: false })}
+          >All Caps</button>
+          <button
+            className={layer.smallCaps ? 'active' : ''}
+            onClick={() => set({ smallCaps: !layer.smallCaps, allCaps: false })}
+          >Small Caps</button>
+          <button
             className={layer.italic ? 'active' : ''}
             onClick={() => set({ italic: !layer.italic })}
           >Italic</button>
         </div>
       </div>
+
+      <div className="control-group">
+        <span>Horizontal</span>
+        <div className="btn-group">
+          {['left', 'center', 'right'].map(a => (
+            <button
+              key={a}
+              className={(layer.hAlign ?? 'left') === a ? 'active' : ''}
+              onClick={() => set({ hAlign: a })}
+            >
+              {a[0].toUpperCase() + a.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label className="control-group">
+        <span>Letter spacing <em>{layer.letterSpacing ?? 0}px</em></span>
+        <input
+          type="range"
+          min={-2}
+          max={20}
+          step={0.5}
+          value={layer.letterSpacing ?? 0}
+          onChange={e => set({ letterSpacing: Number(e.target.value) })}
+        />
+      </label>
 
       <label className="control-group">
         <span>Font size <em>{Math.round(layer.fontSize)}px</em></span>

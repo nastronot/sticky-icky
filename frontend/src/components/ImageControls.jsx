@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const DITHER_ALGOS = [
   { id: 'none',           label: 'None' },
@@ -11,17 +11,31 @@ const DITHER_ALGOS = [
 /** Per-image-layer controls. `onChange(patch)` patches the layer in App. */
 export default function ImageControls({ layer, onChange }) {
   const [lockAspect, setLockAspect] = useState(true);
-  const set = patch => onChange(patch);
-  const aspect = layer.naturalW / layer.naturalH;
+  const set = useCallback((patch) => onChange(patch), [onChange]);
 
-  const onWidthChange = (w) => {
-    if (lockAspect) set({ width: w, height: Math.round(w / aspect) });
-    else set({ width: w });
-  };
-  const onHeightChange = (h) => {
-    if (lockAspect) set({ height: h, width: Math.round(h * aspect) });
-    else set({ height: h });
-  };
+  // The aspect ratio is taken from the original imported image's natural
+  // dimensions, not the current displayed width/height — so repeatedly
+  // resizing while locked never compounds rounding error.
+  const originalWidth  = layer.originalImage?.width  ?? layer.naturalW ?? 1;
+  const originalHeight = layer.originalImage?.height ?? layer.naturalH ?? 1;
+
+  const onWidthChange = useCallback((newW) => {
+    if (lockAspect) {
+      const newH = newW * (originalHeight / originalWidth);
+      onChange({ width: newW, height: Math.round(newH) });
+    } else {
+      onChange({ width: newW });
+    }
+  }, [lockAspect, onChange, originalWidth, originalHeight]);
+
+  const onHeightChange = useCallback((newH) => {
+    if (lockAspect) {
+      const newW = newH * (originalWidth / originalHeight);
+      onChange({ height: newH, width: Math.round(newW) });
+    } else {
+      onChange({ height: newH });
+    }
+  }, [lockAspect, onChange, originalWidth, originalHeight]);
 
   // Render a small thumbnail of the original image once per layer.
   const thumbRef = useRef(null);

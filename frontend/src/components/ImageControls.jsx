@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 const DITHER_ALGOS = [
   { id: 'none',           label: 'None' },
@@ -10,7 +10,9 @@ const DITHER_ALGOS = [
 
 /** Per-image-layer controls. `onChange(patch)` patches the layer in App. */
 export default function ImageControls({ layer, onChange }) {
-  const [lockAspect, setLockAspect] = useState(true);
+  // Aspect lock lives on the layer itself so the canvas resize handles
+  // (in CanvasPreview) and the sidebar W/H inputs share one source of truth.
+  const lockAspect = layer.lockAspect ?? true;
   const set = useCallback((patch) => onChange(patch), [onChange]);
 
   // The aspect ratio is taken from the original imported image's natural
@@ -107,11 +109,11 @@ export default function ImageControls({ layer, onChange }) {
         <div className="btn-group">
           <button
             className={lockAspect ? 'active' : ''}
-            onClick={() => setLockAspect(true)}
+            onClick={() => set({ lockAspect: true })}
           >Lock</button>
           <button
             className={!lockAspect ? 'active' : ''}
-            onClick={() => setLockAspect(false)}
+            onClick={() => set({ lockAspect: false })}
           >Free</button>
         </div>
       </div>

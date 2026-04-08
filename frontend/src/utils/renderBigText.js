@@ -41,8 +41,7 @@ function drawText(canvas, displayText, originalText, font, bold, italic, smallCa
   const W = canvas.width;
   const H = canvas.height;
 
-  ctx.fillStyle = 'white';
-  ctx.fillRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, H);
 
   if (!displayText.trim()) return;
 

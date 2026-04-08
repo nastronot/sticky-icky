@@ -1,5 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { encodePrintPayload } from '../utils/epl2.js';
+import { PAD, applyFont, drawLine, measureLine, fitLines } from '../utils/textFitting.js';
+import { applyDither } from '../utils/dither.js';
 import './BigText.css';
 
 const PRESETS = [
@@ -13,95 +15,7 @@ const PRESETS = [
 
 const FONTS = ['Arial Black', 'Impact', 'Courier New', 'Georgia'];
 
-const PAD = 20;
-
-// ── Canvas drawing helpers ────────────────────────────────────────────────────
-
-function measureLine(ctx, text, letterSpacing, scInfo) {
-  if (!text) return 0;
-  const chars = [...text];
-  let width = 0;
-  if (scInfo) {
-    const origChars = [...scInfo.origLine];
-    for (let i = 0; i < chars.length; i++) {
-      const origCh = origChars[i] ?? chars[i];
-      const isLower = origCh !== origCh.toUpperCase();
-      applyFont(ctx, isLower ? scInfo.smallSize : scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
-      width += ctx.measureText(chars[i]).width + letterSpacing;
-    }
-    applyFont(ctx, scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
-  } else {
-    for (const ch of chars) {
-      width += ctx.measureText(ch).width + letterSpacing;
-    }
-  }
-  return width - letterSpacing;
-}
-
-function drawLine(ctx, text, x, y, letterSpacing, scInfo) {
-  const chars = [...text];
-  let cx = x;
-  if (scInfo) {
-    const origChars = [...scInfo.origLine];
-    for (let i = 0; i < chars.length; i++) {
-      const origCh = origChars[i] ?? chars[i];
-      const isLower = origCh !== origCh.toUpperCase();
-      applyFont(ctx, isLower ? scInfo.smallSize : scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
-      ctx.fillText(chars[i], cx, y);
-      cx += ctx.measureText(chars[i]).width + letterSpacing;
-    }
-    applyFont(ctx, scInfo.fullSize, scInfo.font, scInfo.bold, scInfo.italic);
-  } else {
-    for (const ch of chars) {
-      ctx.fillText(ch, cx, y);
-      cx += ctx.measureText(ch).width + letterSpacing;
-    }
-  }
-}
-
-function applyFont(ctx, size, font, bold, italic) {
-  ctx.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${size}px "${font}"`;
-}
-
-/** Binary-search the largest font size where all lines fit within maxW × maxH. */
-function fitLines(ctx, lines, font, bold, italic, letterSpacing, maxW, maxH, smallCaps, origLines) {
-  let lo = 4;
-  let hi = 2000;
-  let best = null;
-
-  while (lo <= hi) {
-    const size = Math.floor((lo + hi) / 2);
-    applyFont(ctx, size, font, bold, italic);
-    ctx.textBaseline = 'alphabetic';
-
-    // Measure true painted height from actualBoundingBox metrics (use full size — capitals set the line height)
-    let maxAscent = 0;
-    let maxDescent = 0;
-    for (const line of lines) {
-      const m = ctx.measureText(line || 'M');
-      maxAscent = Math.max(maxAscent, m.actualBoundingBoxAscent);
-      maxDescent = Math.max(maxDescent, m.actualBoundingBoxDescent);
-    }
-    const lineH = maxAscent + maxDescent;
-    const gap = size * 0.15;
-    const totalH = lineH * lines.length + gap * (lines.length - 1);
-
-    const smallSize = Math.round(size * 0.7);
-    const maxLineW = Math.max(...lines.map((l, i) => {
-      const scInfo = smallCaps ? { origLine: origLines[i], fullSize: size, smallSize, font, bold, italic } : null;
-      return measureLine(ctx, l, letterSpacing, scInfo);
-    }));
-
-    if (maxLineW <= maxW && totalH <= maxH) {
-      best = { size, lines, origLines, coverage: maxLineW * totalH, totalH, maxLineW, lineH, gap, maxAscent };
-      lo = size + 1;
-    } else {
-      hi = size - 1;
-    }
-  }
-
-  return best;
-}
+// ── Layout helpers ────────────────────────────────────────────────────────────
 
 /** Evenly distribute words across numLines. */
 function splitWords(words, numLines) {
@@ -137,8 +51,6 @@ function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, i
   return best;
 }
 
-// ── Dithering ─────────────────────────────────────────────────────────────────
-
 const DITHER_ALGOS = [
   { id: 'none',     label: 'None' },
   { id: 'bayer4',   label: 'Ordered (Bayer 4×4)' },
@@ -146,110 +58,6 @@ const DITHER_ALGOS = [
   { id: 'floyd',    label: 'Floyd-Steinberg' },
   { id: 'atkinson', label: 'Atkinson' },
 ];
-
-// Standard Bayer ordered-dither matrices, values 0..n²-1.
-const BAYER_4 = [
-   0,  8,  2, 10,
-  12,  4, 14,  6,
-   3, 11,  1,  9,
-  15,  7, 13,  5,
-];
-
-const BAYER_8 = [
-   0, 32,  8, 40,  2, 34, 10, 42,
-  48, 16, 56, 24, 50, 18, 58, 26,
-  12, 44,  4, 36, 14, 46,  6, 38,
-  60, 28, 52, 20, 62, 30, 54, 22,
-   3, 35, 11, 43,  1, 33,  9, 41,
-  51, 19, 59, 27, 49, 17, 57, 25,
-  15, 47,  7, 39, 13, 45,  5, 37,
-  63, 31, 55, 23, 61, 29, 53, 21,
-];
-
-// Error-diffusion kernels: [dx, dy, weight] from the current pixel.
-const FLOYD_KERNEL = [
-  [ 1, 0, 7 / 16],
-  [-1, 1, 3 / 16],
-  [ 0, 1, 5 / 16],
-  [ 1, 1, 1 / 16],
-];
-
-const ATKINSON_KERNEL = [
-  [ 1, 0, 1 / 8],
-  [ 2, 0, 1 / 8],
-  [-1, 1, 1 / 8],
-  [ 0, 1, 1 / 8],
-  [ 1, 1, 1 / 8],
-  [ 0, 2, 1 / 8],
-];
-
-/** Ordered Bayer dither, in-place. `amount` ∈ [0,1] scales the matrix threshold
- *  so that at 0 no black pixels flip and at 1 every black pixel flips. */
-function applyBayerDither(data, width, height, matrix, size, amount) {
-  if (amount <= 0) return;
-  const denom = size * size;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      if (data[i] >= 128) continue; // only act on currently-black pixels
-      const t = (matrix[(y % size) * size + (x % size)] + 0.5) / denom;
-      if (t < amount) {
-        data[i] = 255;
-        data[i + 1] = 255;
-        data[i + 2] = 255;
-      }
-    }
-  }
-}
-
-/** Error-diffusion dither (Floyd-Steinberg / Atkinson), in-place.
- *
- *  The canvas is rendered as near-binary text, so a "true" error diffusion would
- *  do nothing on solid black. To make `amount` meaningful we lift solid-black
- *  pixels toward mid-gray by `amount`: at 0 they stay 0 (no dither), at 1 they
- *  become 128 (~50% halftone). White pixels are left at 255. */
-function applyErrorDiffusion(data, width, height, kernel, amount) {
-  if (amount <= 0) return;
-  const liftedBlack = amount * 128;
-  const buf = new Float32Array(width * height);
-  for (let i = 0; i < width * height; i++) {
-    buf[i] = data[i * 4] < 128 ? liftedBlack : 255;
-  }
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const old = buf[idx];
-      const newVal = old < 128 ? 0 : 255;
-      buf[idx] = newVal;
-      const err = old - newVal;
-      for (const [dx, dy, w] of kernel) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-        buf[ny * width + nx] += err * w;
-      }
-    }
-  }
-  for (let i = 0; i < width * height; i++) {
-    const v = buf[i] < 128 ? 0 : 255;
-    data[i * 4] = v;
-    data[i * 4 + 1] = v;
-    data[i * 4 + 2] = v;
-  }
-}
-
-/** Dispatch to the chosen algorithm. `amount` is 0..100. */
-function applyDither(data, width, height, algo, amount) {
-  if (algo === 'none' || amount <= 0) return;
-  const a = amount / 100;
-  switch (algo) {
-    case 'bayer4':   return applyBayerDither(data, width, height, BAYER_4, 4, a);
-    case 'bayer8':   return applyBayerDither(data, width, height, BAYER_8, 8, a);
-    case 'floyd':    return applyErrorDiffusion(data, width, height, FLOYD_KERNEL, a);
-    case 'atkinson': return applyErrorDiffusion(data, width, height, ATKINSON_KERNEL, a);
-    default: return;
-  }
-}
 
 function renderCanvas(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing) {
   const ctx = canvas.getContext('2d');

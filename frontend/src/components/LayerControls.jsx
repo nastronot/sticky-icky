@@ -27,6 +27,8 @@ export default function LayerControls({
   onCustomHChange,
   onPrint,
   printStatus,
+  onSave,
+  saveStatus,
 }) {
   const preset = PRESETS[presetIdx];
 
@@ -82,6 +84,14 @@ export default function LayerControls({
               />
             </label>
           </div>
+        )}
+
+        <div className="btn-group">
+          <button type="button" className="secondary-btn" onClick={onSave}>Save</button>
+        </div>
+        {saveStatus === 'saved' && <p className="status ok">Saved.</p>}
+        {saveStatus && typeof saveStatus === 'object' && (
+          <p className="status error">Save failed: {saveStatus.error}</p>
         )}
 
         <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>

@@ -4,6 +4,7 @@ import CanvasPreview from './CanvasPreview.jsx';
 import LayerControls, { PRESETS } from './LayerControls.jsx';
 import LayerPanel from './LayerPanel.jsx';
 import { measureTextLayer } from '../utils/renderText.js';
+import { saveDesign, serializeDesign, makeThumbnail } from '../utils/storage.js';
 import './studio.css';
 
 const DEFAULT_BIGTEXT = {
@@ -143,6 +144,7 @@ export default function App() {
   const DARKNESS = 15;
   const SPEED = 1;
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
+  const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
 
@@ -323,6 +325,30 @@ export default function App() {
     setPrintStatus(null);
   }, []);
 
+  const handleSave = useCallback(() => {
+    const canvas = visibleCanvasRef.current;
+    const defaultName = `Design ${new Date().toLocaleString()}`;
+    const name = window.prompt('Save design as:', defaultName);
+    if (name === null) return; // user cancelled
+    try {
+      const thumbnail = makeThumbnail(canvas);
+      const design = serializeDesign({
+        name: name.trim() || defaultName,
+        layers,
+        presetIdx,
+        customW,
+        customH,
+        thumbnail,
+      });
+      saveDesign(design);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 2000);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSaveStatus({ error: err.message ?? 'Save failed' });
+    }
+  }, [layers, presetIdx, customW, customH]);
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   // Bound at document level so they fire from anywhere except editable fields.
   const layersRef = useRef(layers);
@@ -402,6 +428,8 @@ export default function App() {
         onCustomHChange={setCustomH}
         onPrint={handlePrint}
         printStatus={printStatus}
+        onSave={handleSave}
+        saveStatus={saveStatus}
       />
 
       <CanvasPreview

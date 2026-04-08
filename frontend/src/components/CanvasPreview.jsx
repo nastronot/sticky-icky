@@ -196,10 +196,12 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       if (ix.mode === 'move') {
         onPatchLayer(layer.id, { x: layer.x + dx, y: layer.y + dy });
       } else if (ix.mode === 'resize') {
-        // Constrain proportionally if shift is held OR if the layer's own
-        // aspect-lock toggle is on. The layer reference frozen at drag start
-        // is fine here — flipping the toggle mid-drag is not a real workflow.
-        const constrain = e.shiftKey || !!layer.lockAspect;
+        // Shift inverts the current aspect lock for the duration of the drag:
+        // free + shift = constrained, locked + shift = free. The layer
+        // reference frozen at drag start is fine — flipping the sidebar
+        // toggle mid-drag is not a real workflow.
+        const locked = !!layer.lockAspect;
+        const constrain = e.shiftKey ? !locked : locked;
         const next = computeResize(layer, ix.handle, dx, dy, constrain);
         if (next) onPatchLayer(layer.id, next);
       } else if (ix.mode === 'rotate') {

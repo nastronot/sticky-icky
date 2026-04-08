@@ -391,6 +391,23 @@ export default function App() {
     refreshGallery();
   }, [refreshGallery]);
 
+  const handleNewDesign = useCallback(() => {
+    const hasContent =
+      layers.length > 1 ||
+      (layers[0]?.type === 'bigtext' && (layers[0]?.text ?? '').length > 0) ||
+      (layers[0]?.type === 'text' && (layers[0]?.text ?? '') !== 'Text') ||
+      (layers[0]?.type === 'image');
+    if (hasContent && !window.confirm('Start fresh? Unsaved changes will be lost.')) {
+      return;
+    }
+    suppressNextHistoryRef.current = true;
+    setLayers([{ ...DEFAULT_BIGTEXT, id: 'default' }]);
+    setSelectedLayerId('default');
+    setPresetIdx(0);
+    setCustomW(4.0);
+    setCustomH(2.0);
+  }, [layers]);
+
   const handleSave = useCallback(() => {
     const canvas = visibleCanvasRef.current;
     const defaultName = `Design ${new Date().toLocaleString()}`;
@@ -553,6 +570,7 @@ export default function App() {
         onSave={handleSave}
         saveStatus={saveStatus}
         onOpenGallery={handleOpenGallery}
+        onNew={handleNewDesign}
       />
 
       <CanvasPreview

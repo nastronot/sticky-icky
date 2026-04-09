@@ -142,4 +142,4 @@ The frontend renders at the printer's native 203 DPI from the start — no resam
 
 ## License
 
-No license has been added yet. All rights reserved by the author until one is chosen — pick MIT or similar before publishing publicly.
+Licensed under the [GNU General Public License v3.0](LICENSE). See the `LICENSE` file at the repo root for the full text.

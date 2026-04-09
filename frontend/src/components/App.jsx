@@ -90,6 +90,29 @@ function makeTextLayer(labelW, labelH) {
   };
 }
 
+let fillSeq = 0;
+function makeFillLayer(labelW, labelH) {
+  const n = ++fillSeq;
+  return {
+    id: `fill-${Date.now()}-${n}`,
+    type: 'fill',
+    name: `Fill ${n}`,
+    visible: true,
+    x: 0,
+    y: 0,
+    width: labelW,
+    height: labelH,
+    rotation: 0,
+    flipH: false,
+    flipV: false,
+    color: 'black',
+    invert: false,
+    xor: true,
+    ditherAlgo: 'none',
+    ditherAmount: 50,
+  };
+}
+
 let imageSeq = 0;
 /** Read a File into an HTMLImageElement, then into ImageData. */
 async function loadImageFile(file) {
@@ -275,6 +298,12 @@ export default function App() {
 
   const addText = useCallback(() => {
     const layer = makeTextLayer(labelW, labelH);
+    setLayers(ls => [...ls, layer]);
+    setSelectedLayerId(layer.id);
+  }, [labelW, labelH]);
+
+  const addFill = useCallback(() => {
+    const layer = makeFillLayer(labelW, labelH);
     setLayers(ls => [...ls, layer]);
     setSelectedLayerId(layer.id);
   }, [labelW, labelH]);
@@ -879,6 +908,7 @@ export default function App() {
         onAddBigText={addBigText}
         onAddText={addText}
         onAddImage={addImage}
+        onAddFill={addFill}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}
         onDuplicate={duplicateLayer}

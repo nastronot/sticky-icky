@@ -1,4 +1,5 @@
 import BigTextControls from './BigTextControls.jsx';
+import FillControls from './FillControls.jsx';
 import ImageControls from './ImageControls.jsx';
 import TextControls from './TextControls.jsx';
 
@@ -24,6 +25,9 @@ export default function LayerControls({
         )}
         {selectedLayer?.type === 'text' && (
           <TextControls layer={selectedLayer} onChange={onLayerChange} focusTextNonce={focusTextNonce} />
+        )}
+        {selectedLayer?.type === 'fill' && (
+          <FillControls layer={selectedLayer} onChange={onLayerChange} />
         )}
         {selectedLayer?.type === 'image' && (
           <ImageControls

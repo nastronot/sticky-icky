@@ -2,6 +2,7 @@ import { deserializeDesign } from './storage.js';
 import { renderBigTextLayer } from './renderBigText.js';
 import { renderImageLayer, makeDitherCache } from './renderImage.js';
 import { renderTextLayer } from './renderText.js';
+import { renderFillLayer } from './renderFill.js';
 import { xorComposite } from './composite.js';
 
 // Fallback dimensions when an exported design predates the labelW/labelH
@@ -53,6 +54,8 @@ export async function renderDesignToCanvas(design) {
       await renderBigTextLayer(off, layer);
     } else if (layer.type === 'image') {
       renderImageLayer(off, layer, ditherCache);
+    } else if (layer.type === 'fill') {
+      renderFillLayer(off, layer);
     } else if (layer.type === 'text') {
       await renderTextLayer(off, layer);
     }

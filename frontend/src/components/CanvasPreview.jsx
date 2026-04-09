@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useRef, useState } from 'react';
 import { renderBigTextLayer } from '../utils/renderBigText.js';
 import { renderImageLayer, makeDitherCache, pruneDitherCache } from '../utils/renderImage.js';
 import { renderTextLayer } from '../utils/renderText.js';
+import { renderFillLayer } from '../utils/renderFill.js';
 import { xorComposite } from '../utils/composite.js';
 
 // Visual sizing for selection chrome (canvas pixel space — scaled with the
@@ -139,6 +140,8 @@ const CanvasPreview = forwardRef(function CanvasPreview(
           await renderBigTextLayer(off, layer);
         } else if (layer.type === 'image') {
           renderImageLayer(off, layer, ditherCache);
+        } else if (layer.type === 'fill') {
+          renderFillLayer(off, layer);
         } else if (layer.type === 'text') {
           const measured = await renderTextLayer(off, layer);
           if (cancelled) return;
@@ -173,7 +176,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
           }
         } else {
           const sel = layers.find(l => l.id === selectedLayerId);
-          if ((sel?.type === 'image' || sel?.type === 'text') && sel.visible) drawSelectionChrome(octx, sel);
+          if ((sel?.type === 'image' || sel?.type === 'text' || sel?.type === 'fill') && sel.visible) drawSelectionChrome(octx, sel);
         }
       }
     })();
@@ -243,11 +246,11 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         return;
       }
 
-      // 1. If a handle on the currently-selected image/text layer was hit,
-      //    start that interaction immediately (handles often poke outside
-      //    the body).
+      // 1. If a handle on the currently-selected image/text/fill layer was
+      //    hit, start that interaction immediately (handles often poke
+      //    outside the body).
       const selected = ls.find(l => l.id === selectedId);
-      if ((selected?.type === 'image' || selected?.type === 'text') && selected.visible) {
+      if ((selected?.type === 'image' || selected?.type === 'text' || selected?.type === 'fill') && selected.visible) {
         const handle = hitHandle(pt, selected);
         if (handle === 'rotate') {
           beginInteraction(overlay, e, { mode: 'rotate', layer: selected, start: pt });
@@ -259,12 +262,12 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         }
       }
 
-      // 2. Hit-test all visible image and text layers top-to-bottom for a
-      //    body click.
+      // 2. Hit-test all visible image / text / fill layers top-to-bottom
+      //    for a body click.
       for (let i = ls.length - 1; i >= 0; i--) {
         const layer = ls[i];
         if (!layer.visible) continue;
-        if (layer.type !== 'image' && layer.type !== 'text') continue;
+        if (layer.type !== 'image' && layer.type !== 'text' && layer.type !== 'fill') continue;
         if (hitBody(pt, layer)) {
           if (layer.id !== selectedId) onSelectLayer(layer.id);
           beginInteraction(overlay, e, { mode: 'move', layer, start: pt });

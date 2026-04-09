@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
   RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
-  Maximize2, Minimize2, Ruler,
+  Maximize2, Minimize2, Ruler, Square,
 } from 'lucide-react';
 
 export const PRESETS = [
@@ -24,6 +24,7 @@ export default function LayerPanel({
   onAddBigText,
   onAddText,
   onAddImage,
+  onAddFill,
   onToggleVisibility,
   onDelete,
   onDuplicate,
@@ -163,6 +164,7 @@ export default function LayerPanel({
           <button type="button" onClick={onAddBigText}><Plus size={14} /> Big Text</button>
           <button type="button" onClick={onAddText}><Plus size={14} /> Text</button>
           <button type="button" onClick={handleAddImageClick}><Plus size={14} /> Image</button>
+          <button type="button" onClick={onAddFill}><Square size={14} /> Fill</button>
         </div>
         <input
           ref={fileInputRef}

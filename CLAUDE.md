@@ -2,12 +2,12 @@
 
 ## Project
 
-Browser-based sticker art design tool for the Zebra LP2844 thermal printer. Single repo, two parts:
+Sticky Zebra — browser-based design tool for the Zebra LP2844 thermal printer. Single repo, two parts:
 
-- `~/dev/thermal/frontend/` — React app (canvas editor, dithering, EPL2 encoding)
-- `~/dev/thermal/backend/` — Minimal Python/FastAPI server (single POST /print endpoint, writes to USB)
+- `~/dev/thermal/frontend/` — React + Vite app. Multi-layer canvas editor (Big Text, free Text, Image, Solid Fill), per-layer dithering and invert, XOR compositing, save/load gallery backed by IndexedDB.
+- `~/dev/thermal/backend/` — Minimal FastAPI server. Single `POST /print` endpoint that converts a base64 1bpp bitmap into an EPL2 GW payload and writes it to the printer over serial.
 
-Spec lives at `~/dev/thermal/spec.md`.
+`spec.md` exists at the repo root but is the original v1 brief and is now mostly outdated. Use this file as the source of truth for current state.
 
 ---
 
@@ -23,24 +23,23 @@ Spec lives at `~/dev/thermal/spec.md`.
 ## On Session Start
 
 1. Read `CLAUDE.md` (this file)
-2. Read `spec.md` only if you need broad project context
+2. Read `README.md` if you need a high-level overview of the project for users
 3. Do not read files speculatively
 
 ---
 
 ## Hardware
 
-| Property         | Value                         |
-| ---------------- | ----------------------------- |
-| Printer          | Zebra LP2844                  |
-| Serial device    | `/dev/ttyUSB0` @ 38400 8N1 (primary print path) |
-| USB device       | `/dev/usb/lp0` (reference only — GW broken on this transport) |
-| Firmware         | EPL2 only — V4.29. No ZPL.    |
-| Resolution       | 203 DPI                       |
-| Print width      | 832 dots (4.09")              |
-| Image buffer     | 245K                          |
-| Max label length | ~2400 dots (~11.8")           |
-| Bitmap command   | `GW` (Direct Graphic Write) over serial |
+| Property         | Value                                              |
+| ---------------- | -------------------------------------------------- |
+| Printer          | Zebra LP2844                                       |
+| Transport        | Serial via `/dev/ttyUSB0` @ 38400 baud, 8N1, RTS/CTS |
+| Firmware         | EPL2 only — V4.29 UPS-branded. **No ZPL.**         |
+| Resolution       | 203 DPI                                            |
+| Print width      | 832 dots (4.09")                                   |
+| Image buffer     | 245 KB                                             |
+| Max label length | ~2400 dots (~11.8")                                |
+| Bitmap command   | `GW` (Direct Graphic Write)                        |
 
 **There is no ZPL support. Do not use `^GF`, `^XA`, or any ZPL syntax.**
 
@@ -49,12 +48,13 @@ Spec lives at `~/dev/thermal/spec.md`.
 ## Print Pipeline
 
 ```
-Canvas (HTML5 Canvas / OffscreenCanvas)
-  → flatten to 1-bit bitmap (W × H pixels)
-  → pack to 1bpp row-major bytes (1=black, 0=white), base64 encode
-  → POST bitmap + dimensions as JSON to backend
-  → backend inverts bytes (GW expects 0=black, 1=white)
-  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 38400 8N1
+Layer state in App (React)
+  → CanvasPreview renders each layer to its own offscreen canvas
+  → xorComposite flattens visible layers onto the print canvas
+  → encodePrintPayload (frontend) packs 1bpp row-major MSB-first bytes (1=black, 0=white) and base64 encodes
+  → POST /print  { bitmap, width, height, labelW, labelH, darkness, speed, copies }
+  → backend XORs every byte 0xFF (GW expects 0=black, 1=white)
+  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 38400 8N1, RTS/CTS
 ```
 
 ### EPL2 payload format
@@ -64,18 +64,55 @@ The backend assembles and sends this to the printer over serial:
 ```
 \r\n                                       — wake / line sync
 N\r\n                                      — clear image buffer
-q{labelW}\r\n                              — label width in dots
-Q{labelH},21\r\n                           — label height in dots + 21-dot gap
-D{darkness}\r\n                            — darkness (0–15, default 12 from frontend)
-S{speed}\r\n                               — print speed (1–4, default 1 from frontend)
-GW0,0,{width_bytes},{height}\r\n           — Direct Graphic Write at (0,0)
-{raw inverted bitmap bytes}                — width_bytes * height bytes, NO separator
-P1\r\n                                     — print 1 copy
+q{width}\r\n                               — label width in dots (= padded bitmap width)
+Q{labelH},21\r\n                           — label height in dots + 21-dot inter-label gap
+D{darkness}\r\n                            — print darkness (0–15)
+S{speed}\r\n                               — print speed (1–4)
+GW10,0,{width_bytes},{height}\r\n          — Direct Graphic Write at (10, 0)
+{raw inverted bitmap bytes}                — width_bytes × height bytes, NO separator
+P{copies}\r\n                              — print N copies
 ```
 
-**Why GW over serial?** `GW` (Direct Graphic Write) is non-functional over USB on our V4.29 UPS-branded firmware but works reliably over serial. `LO` (Line Draw) works over USB but explodes in command count for dense raster art and runs into payload size limits. Serial + GW is the primary print path. The binary bitmap data follows the `GW` command line immediately after its `\r\n` with no separator.
+Notes:
+- The `q` command receives the *padded* bitmap width, not the user-facing label width — the printer expects q to match the byte count GW will stream.
+- `GW10,0` shifts the bitmap 10 bytes (= 80 dots) to the right of the print head's left edge so it lines up with the physical label. This is empirically calibrated for the current label stock + guides; if the stock changes, re-measure (print a long horizontal rule, see how many dots are missing, adjust the X offset).
+- Frontend hard-codes `darkness: 15`, `speed: 1` and exposes a copies number input; the per-print sliders that used to live in the sidebar are gone.
 
-**GW bit polarity:** `GW` expects `0 = black, 1 = white`. The frontend packs the bitmap as `1 = black, 0 = white`, so the backend XORs every byte with `0xFF` before sending.
+### GW bit polarity
+
+GW expects `0 = black, 1 = white`. The frontend packs `1 = black, 0 = white` so the backend XORs every byte with `0xFF` before sending. **Do not change frontend packing — invert in the backend.**
+
+---
+
+## Frontend feature surface (current)
+
+- **Layer types**: Big Text (auto-fit to label), free Text (positioned, sized via fontSize), Image (import + dither + drag/scale/rotate/flip + crop), Fill (solid black rectangle).
+- **Per-layer**: position (x, y), size (width, height), rotation, flip H/V, invert, XOR composite toggle (off → overwrite), dithering (none / Bayer 4×4 / Bayer 8×8 / Floyd-Steinberg / Atkinson) with amount slider.
+- **Canvas interaction**: drag, 8 resize handles (corners + edges), rotation handle, shift inverts the layer's `lockAspect` for the drag, shift snaps rotation to 45°. Pointer math handles viewport rotation.
+- **Compositing**: XOR (default) — overlapping black flips to white. Per-layer toggle for solid overwrite mode.
+- **Image crop**: per-image crop mode with draggable green crop rectangle, Apply replaces the layer's `originalImage` with the cropped slice.
+- **Save / load**: full design state to IndexedDB (`sticky_zebra` db, `designs` + `autosave` stores). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout.
+- **Autosave**: 350 ms-debounced burst-coalesced snapshot to the `autosave` store on every layer mutation; mount-time prompt to restore if a snapshot exists.
+- **Undo / redo**: 20-entry history with the same 350 ms burst coalescing. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y.
+- **Keyboard shortcuts**: arrow nudge (1 px / 10 px with shift), Delete to remove layer, Escape to deselect, Ctrl+D to duplicate, Ctrl+V to paste image from clipboard.
+- **Drag-and-drop image files** anywhere in the studio.
+- **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; one-time ruler-based calibration modal stored in localStorage).
+- **Label-size presets**: stored in localStorage at `thermal_label_presets_v2`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
+- **Fonts**: Google Fonts collection (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
+
+---
+
+## Tech Stack
+
+| Layer         | Choice                                              |
+| ------------- | --------------------------------------------------- |
+| Frontend      | React 19, Vite 8                                    |
+| Canvas        | HTML5 Canvas API (no Konva — that's spec leftovers) |
+| Icons         | lucide-react                                        |
+| Dithering     | Hand-rolled in `src/utils/dither.js`                |
+| Storage       | IndexedDB (`sticky_zebra` db) + localStorage for calibration / presets / DPI |
+| Backend       | FastAPI + pyserial                                  |
+| Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1, rtscts=True)` |
 
 ---
 
@@ -85,69 +122,52 @@ P1\r\n                                     — print 1 copy
 
 ```bash
 cd ~/dev/thermal/backend
+. venv/bin/activate
 uvicorn main:app --reload --port 8765
-
-# or via Docker if containerized
-docker-compose up -d
 ```
 
 ### Frontend
 
 ```bash
 cd ~/dev/thermal/frontend
-npm run dev
-npm run build
+npm run dev      # vite dev server on http://localhost:5173
+npm run build    # production build → dist/
+npm run lint     # eslint
+npm run test     # vitest
 ```
 
-### Manual print test
+### Manual print test (raw EPL2 over serial)
 
 ```bash
-# Send a raw EPL2 file directly
-cat test.epl > /dev/usb/lp0
+# Send a raw EPL2 file directly to the printer
+cat test.epl > /dev/ttyUSB0
 
-# Printer status query
-sudo bash -c 'cat /dev/usb/lp0 & echo -e "UQ\r\n" > /dev/usb/lp0; sleep 2; kill %1'
+# Printer status query (UQ command)
+sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill %1'
 ```
-
----
-
-## Tech Stack
-
-| Layer         | Choice                                |
-| ------------- | ------------------------------------- |
-| Frontend      | React                                 |
-| Canvas        | HTML5 Canvas API + Konva.js           |
-| Dithering     | `image-q` or custom JS                |
-| EPL2 encoding | Backend — bitmap → `GW` payload (bytes inverted) |
-| Backend       | FastAPI (Python) + pyserial           |
-| Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1)` |
 
 ---
 
 ## Known Gotchas
 
-- The EPL2 reference point must be set with `R120,0` to align print output with the physical left edge of the label. The value `120` was determined empirically by printing test lines across the full print head width with our current label guides and stock — it's not a universal constant. If label width or the mechanical guides change, re-measure: print a long horizontal rule, see how many dots are missing on each side, and adjust `R{x},0` accordingly. Without it the image lands either off the left edge (R0,0) or shifted by whatever offset the printer last had saved (often R104,0 from factory).
-- Serial baud rate is **38400** — the maximum reliable speed for this printer/firmware. 57600 and above are not supported (the printer drops bytes and prints garbled or partial labels). 9600 also works but is unnecessarily slow for full-page bitmaps.
-- High darkness (D13+) combined with high speed (S2+) overdraws the print head on dense rows and causes prints to fail partway through. Default `D12 S1` is reliable for typical artwork; raise darkness only when paper/ribbon needs more energy and lower speed first if dense rows are present. The frontend density warning factors both into its row-pixel threshold.
-- `GW` works over **serial** (`/dev/ttyUSB0` @ 38400 8N1) but NOT over USB (`/dev/usb/lp0`) on V4.29 UPS-branded firmware — over USB it produces blank labels. Serial + GW is the primary print path. `LO` is the fallback that works over USB but has density / payload limits and is no longer used by the backend.
-- `GW` bit polarity is inverted from the frontend: GW expects `0 = black, 1 = white`. The frontend packs `1 = black, 0 = white`, so the backend XORs every byte with `0xFF` before sending. Do not change frontend packing — invert in the backend.
-- The binary bitmap for `GW` follows the `GW` command line immediately after its `\r\n` with no separator. Any extra bytes between the command and the data will desync the printer.
-- 245K image buffer is the hard ceiling for a single print — an 832×2400 1-bit image is ~249KB, right at the limit; test large prints early
-- `/dev/ttyUSB0` requires write permission — add user to `dialout` (or `uucp`) group, e.g. `sudo usermod -aG dialout matt`. `/dev/usb/lp0` (legacy) requires the `lp` group.
-- CUPS raw queue exists (`ZebraLP2844`) but the backend bypasses it entirely — direct serial write only
-- Dithering must be applied before encoding — the printer has no grayscale capability whatsoever
-- EPL2 `LO` draws lines but does not print — follow with `P1\r\n` to trigger print
-- Canvas font rendering: always `await document.fonts.load(fontSpec)` before measuring or drawing — skipping this causes `measureText` to return stale metrics for the previous font, producing a mis-sized render that corrects itself one frame later
-- Canvas display scale: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — relying solely on `ResizeObserver` introduces a one-frame lag when label size changes because the observer fires after React has already painted the new canvas dimensions. Use `Math.min(availW / labelW, availH / labelH)` (fit both axes) rather than width-only. Guard: if `getBoundingClientRect()` returns zero width or height (layout not yet run on initial mount), skip the synchronous set and let `ResizeObserver` handle the first-paint scale instead. Initialize `displayScale` to `0` (not `1`) — the container is flex-sized independently of the canvas, so the observer fires on first paint with valid dimensions and the canvas is merely invisible (0×0 CSS) for one frame rather than flashing at full 832px width.
-- Canvas text sizing and centering: use `textBaseline = 'alphabetic'` with `actualBoundingBoxAscent` / `actualBoundingBoxDescent` from `ctx.measureText()` to get the true painted glyph height — the `size * 1.15` heuristic underestimates heavy fonts like Arial Black. `lineH = maxAscent + maxDescent`, `totalH = lineH * lines.length + gap * (lines.length - 1)`. Position each line's baseline at `startY + i * (lineH + gap) + maxAscent`.
-- Justify alignment: all lines (including last) are fully justified — per-line letter spacing = `(maxW - naturalW) / (charCount - 1)`. Single-character lines fall back to left-aligned (can't distribute spacing).
-- Text style toggles (All Caps, Small Caps, Italic) are non-destructive — the textarea value is never modified. Display text is derived: `allCaps || smallCaps → text.toUpperCase()`. All Caps and Small Caps are mutually exclusive; Italic is independent and can combine with either. Small caps renders originally-lowercase characters as uppercase glyphs at 70% of the fitted font size — the original text is passed alongside the display text so `measureLine`/`drawLine` can check per-character case via `scInfo.origLine`.
+- **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (it produces blank labels). Serial is the *only* working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code; the LO-command fallback is gone.
+- **Baud rate is 38400** — the maximum reliable speed for this printer. 57600+ produces dropped bytes and partial labels. 9600 also works but is unnecessarily slow for full-page bitmaps.
+- **`GW10,0` offset**: the GW command's X offset (10 bytes = 80 dots) is empirically calibrated for the current label stock + guides. If you change label width or mechanical guides, re-measure.
+- **`q` matches the bitmap width**, not `labelW`. The bitmap width is padded to the next multiple of 8 by the frontend; the `q` command must match what `GW` actually streams.
+- **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. The shipped frontend hard-codes `D15 S1` which is reliable for the dense raster art this app produces.
+- **245 KB image buffer** is the hard ceiling for a single print. An 832×2400 1-bit bitmap is ~249 KB and will fail. Test large prints early.
+- **`/dev/ttyUSB0` permissions**: the user needs to be in the `dialout` (or `uucp`) group, e.g. `sudo usermod -aG dialout matt`. **The permission resets every time the USB-to-serial adapter is reconnected**, so an `udev` rule or `chmod 666 /dev/ttyUSB0` is the easy workaround for dev.
+- **GW data follows immediately**: the binary bitmap follows the `GW` command line right after its `\r\n` with no separator. Any extra bytes between the command and the data desync the printer.
+- **Bit polarity is inverted**: GW expects `0=black, 1=white`. The frontend packs `1=black, 0=white`. The backend XORs every byte with `0xFF` before sending. Don't move that inversion to the frontend — the rest of the canvas/composite pipeline assumes 1=black.
+- **CUPS raw queue** (`ZebraLP2844`) exists if `lpstat` is run, but the backend bypasses CUPS entirely and writes directly to the serial device.
+- **Dithering must be applied before encoding** — the printer has no grayscale capability whatsoever.
 
----
+### Frontend rendering quirks
 
-## Open Questions
-
-1. Konva.js vs. Fabric.js for canvas object model? Konva
-2. Dither default — Floyd-Steinberg or Atkinson for art output? Both available. Floyd-Steinberg default.
-3. Backend language confirmed as Python? Yes
-4. Font sourcing — embed subset or rely on system fonts? System for now
+- **Canvas font rendering**: always `await document.fonts.load(fontSpec)` before measuring or drawing. Skipping this causes `measureText` to return stale metrics for the previous font, producing a mis-sized render that corrects itself one frame later.
+- **Canvas display scale**: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — relying solely on `ResizeObserver` introduces a one-frame lag when label size changes. Use `Math.min(availW / labelW, availH / labelH)` to fit both axes. Guard: if the rect is zero (layout not yet run on first mount), skip the synchronous set and let `ResizeObserver` handle the first paint. Initialize `displayScale` to `0` so the canvas is invisible for one frame on first mount instead of flashing at full 832 px width.
+- **Canvas text height**: use `textBaseline = 'alphabetic'` with `actualBoundingBoxAscent` / `actualBoundingBoxDescent` from `ctx.measureText()`. The `size * 1.15` heuristic underestimates heavy fonts like Arial Black.
+- **Justify alignment** in Big Text: all lines (including the last) are fully justified — per-line letter spacing is `(maxW - naturalW) / (charCount - 1)`. Single-character lines fall back to left-aligned.
+- **Text style toggles** (All Caps, Small Caps, Italic) are non-destructive — the textarea value is never modified. Display text is derived: `(allCaps || smallCaps) → text.toUpperCase()`. All Caps and Small Caps are mutually exclusive; Italic is independent. Small Caps renders originally-lowercase characters at 70% of the fitted size — the original text is passed alongside the display text so `measureLine`/`drawLine` can check per-character case via `scInfo.origLine`.
+- **Pointer interaction in rotated viewport**: when `viewportRotation === 90`, the inverse-rotation is `(canvasX, canvasY) = (sy, labelH - sx)` — applied once at the `screenToCanvas` boundary, so all downstream interactions (move, resize, rotate, hit testing) work in canvas space without any further branching.
+- **Refs mirrored from props/state**: long-lived event handlers (keydown, pointer) are bound once and read fresh values from refs. The ref assignments live inside a `useEffect` so React's "no refs during render" rule isn't violated.

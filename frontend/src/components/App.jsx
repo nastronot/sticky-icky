@@ -3,6 +3,7 @@ import { encodePrintPayload } from '../utils/epl2.js';
 import CanvasPreview from './CanvasPreview.jsx';
 import LayerControls from './LayerControls.jsx';
 import LayerPanel, { PRESETS } from './LayerPanel.jsx';
+import { ImagePlus } from 'lucide-react';
 import { measureTextLayer } from '../utils/renderText.js';
 import {
   saveDesign,
@@ -162,6 +163,8 @@ export default function App() {
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryDesigns, setGalleryDesigns] = useState([]);
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
 
   const preset = PRESETS[presetIdx];
@@ -519,6 +522,41 @@ export default function App() {
     return () => clearTimeout(handle);
   }, [layers, presetIdx, customW, customH]);
 
+  // ── Paste image from clipboard ────────────────────────────────────────────
+  // Document-level paste listener. Skips when focus is on a text input so the
+  // browser's normal paste-into-textarea behavior keeps working. Looks for the
+  // first image item on the clipboard, converts it to a File, and routes it
+  // through the same addImage flow as the file picker / drop handler.
+  useEffect(() => {
+    const onPaste = (e) => {
+      const t = document.activeElement;
+      if (
+        t && (
+          t.tagName === 'INPUT' ||
+          t.tagName === 'TEXTAREA' ||
+          t.tagName === 'SELECT' ||
+          t.isContentEditable
+        )
+      ) {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const blob = item.getAsFile();
+          if (blob) {
+            e.preventDefault();
+            addImage(blob);
+            return;
+          }
+        }
+      }
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [addImage]);
+
   // ── Scroll-to-increment on number / range inputs ──────────────────────────
   // Document-level wheel listener: when the cursor is over an <input
   // type="number"> or <input type="range">, the wheel steps the value
@@ -623,8 +661,60 @@ export default function App() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [undo, redo, deleteLayer, duplicateLayer]);
 
+  // ── Drag-and-drop image files ─────────────────────────────────────────────
+  // dragenter/dragleave fire on every child as the cursor crosses descendants,
+  // so we use a counter to track "is the file drag currently inside the studio
+  // root" rather than relying on a single boolean. Only File drags activate
+  // the overlay — the layer-list HTML5 drag (dataTransfer.types includes
+  // 'text/plain' but not 'Files') doesn't trigger it.
+  const isFileDrag = (e) => {
+    const types = e.dataTransfer?.types;
+    return !!types && Array.from(types).includes('Files');
+  };
+
+  const handleDragEnter = (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (dragCounterRef.current === 1) setDragOver(true);
+  };
+
+  const handleDragOver = (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e) => {
+    if (!isFileDrag(e)) return;
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragOver(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    for (const file of files) {
+      if (file.type && file.type.startsWith('image/')) {
+        addImage(file);
+      }
+    }
+  };
+
   return (
-    <div className="studio">
+    <div
+      className="studio"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <LayerControls
         selectedLayer={selectedLayer}
         onLayerChange={patchSelectedLayer}
@@ -681,6 +771,13 @@ export default function App() {
           onClose={handleCloseGallery}
         />
       )}
+
+      <div className={`drop-zone-overlay ${dragOver ? 'active' : ''}`}>
+        <div className="drop-zone-box">
+          <ImagePlus size={56} strokeWidth={1.5} />
+          <span>Drop image to add layer</span>
+        </div>
+      </div>
     </div>
   );
 }

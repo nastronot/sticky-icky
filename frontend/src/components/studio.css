@@ -629,3 +629,42 @@
   color: #1a1a1a;
   border-color: #f2b84b;
 }
+
+/* Drop zone overlay ========================================================= */
+
+.drop-zone-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  /* Pointer-events off so the underlying drag events on .studio keep firing.
+     Without this the drop would land on the overlay and never reach the
+     drag handlers below. */
+  pointer-events: none;
+}
+
+.drop-zone-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.drop-zone-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 56px 84px;
+  border: 4px dashed #00d96b;
+  border-radius: 16px;
+  background: rgba(10, 10, 10, 0.6);
+  color: #00d96b;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

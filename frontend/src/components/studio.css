@@ -111,6 +111,33 @@
 .control-group input[type='range'] {
   padding: 0;
   cursor: pointer;
+  /* Tint the native track-fill, focus ring, and thumb to the brand green
+     instead of the OS blue. Picked up by Chromium, Firefox, and recent
+     WebKit via the standard `accent-color` property. */
+  accent-color: #00d96b;
+}
+
+/* Number input spinners ====================================================
+   The native browser spin buttons render with a light theme by default,
+   which clashes against the dark sidebar. Override to a dark fill and
+   filter the icon arrows to match. */
+
+.control-group input[type='number'],
+.custom-size input[type='number'] {
+  /* `field-sizing: content` would shrink-wrap, but the dark color-scheme
+     hint is what tells Chromium / WebKit to use dark spin buttons. */
+  color-scheme: dark;
+}
+
+.control-group input[type='number']::-webkit-inner-spin-button,
+.control-group input[type='number']::-webkit-outer-spin-button,
+.custom-size input[type='number']::-webkit-inner-spin-button,
+.custom-size input[type='number']::-webkit-outer-spin-button {
+  background: #1a1a1a;
+  /* Invert the default near-black arrows on the now-dark background so
+     they read as light grey. */
+  filter: invert(1) brightness(0.85);
+  opacity: 1;
 }
 
 /* Button group ============================================================= */
@@ -877,6 +904,7 @@
   border-radius: 4px;
   padding: 0;
   cursor: pointer;
+  accent-color: #00d96b;
 }
 
 .cal-actions {

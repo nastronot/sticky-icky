@@ -23,12 +23,20 @@ SERIAL_PORT = "/dev/ttyUSB0"
 BAUD_RATE = 38400
 
 
+# Hard caps that protect against allocation-based DoS while staying well
+# above any legitimate label the LP2844 can print (832 dots wide, ~2400
+# dots long maximum). The base64 budget covers a worst-case 4096 × 4096
+# 1bpp bitmap (~2.1 MB raw → ~2.8 MB base64) with headroom.
+MAX_DOTS = 4096
+MAX_BITMAP_BASE64 = 4 * 1024 * 1024  # 4 MB
+
+
 class PrintRequest(BaseModel):
-    bitmap: str  # base64-encoded 1bpp row-major bitmap
-    width: int   # pixel width (padded to multiple of 8)
-    height: int  # pixel height
-    labelW: int  # label width in dots
-    labelH: int  # label height in dots
+    bitmap: str = Field(..., max_length=MAX_BITMAP_BASE64)
+    width: int = Field(..., ge=8, le=MAX_DOTS)   # padded pixel width, multiple of 8
+    height: int = Field(..., ge=1, le=MAX_DOTS)  # pixel height
+    labelW: int = Field(..., ge=1, le=MAX_DOTS)  # label width in dots
+    labelH: int = Field(..., ge=1, le=MAX_DOTS)  # label height in dots
     darkness: int = Field(default=12, ge=0, le=15)  # EPL2 D command (0–15)
     speed: int = Field(default=1, ge=1, le=4)       # EPL2 S command (1–4)
     copies: int = Field(default=1, ge=1, le=99)     # EPL2 P command (1–99)
@@ -41,8 +49,14 @@ async def health():
 
 @app.post("/print")
 async def print_label(req: PrintRequest):
+    if req.width % 8 != 0:
+        raise HTTPException(
+            status_code=400,
+            detail="width must be a multiple of 8 (the bitmap is packed 1bpp row-major)",
+        )
+
     try:
-        bitmap_bytes = base64.b64decode(req.bitmap)
+        bitmap_bytes = base64.b64decode(req.bitmap, validate=True)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 bitmap data")
 

@@ -10,6 +10,7 @@ const FONTS = [
   'Arial Black',
   'Impact',
   'Inter',
+  'Barriecito',
   'Bebas Neue',
   'Boldonse',
   'Bungee',

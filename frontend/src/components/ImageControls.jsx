@@ -11,39 +11,6 @@ const DITHER_ALGOS = [
 
 /** Per-image-layer controls. `onChange(patch)` patches the layer in App. */
 export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, onApplyCrop, onCancelCrop }) {
-  // While in crop mode for this layer, the panel collapses to a focused
-  // crop interaction (Apply / Cancel) so the user can't fiddle with other
-  // properties mid-crop. Crop is disabled when the layer is rotated or
-  // flipped because the crop math assumes an axis-aligned image.
-  if (cropMode) {
-    return (
-      <>
-        <p className="empty-hint">
-          Drag the crop box on the canvas, then Apply.
-        </p>
-        <div className="control-group">
-          <span>Crop</span>
-          <div className="btn-group">
-            <button
-              type="button"
-              className="active"
-              onClick={onApplyCrop}
-              title="Apply crop"
-              aria-label="Apply crop"
-            ><Check size={16} /> Apply</button>
-            <button
-              type="button"
-              onClick={onCancelCrop}
-              title="Cancel crop"
-              aria-label="Cancel crop"
-            ><X size={16} /> Cancel</button>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  const cropDisabled = layer.rotation !== 0 || layer.flipH || layer.flipV;
   // Aspect lock lives on the layer itself so the canvas resize handles
   // (in CanvasPreview) and the sidebar W/H inputs share one source of truth.
   const lockAspect = layer.lockAspect ?? false;
@@ -73,7 +40,10 @@ export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, 
     }
   }, [lockAspect, onChange, originalWidth, originalHeight]);
 
-  // Render a small thumbnail of the original image once per layer.
+  // Render a small thumbnail of the original image once per layer. Bound
+  // unconditionally so the hook order stays stable across the crop-mode
+  // early return below; the thumb canvas is unmounted in crop mode so the
+  // effect's ref is null and it bails out.
   const thumbRef = useRef(null);
   useEffect(() => {
     const c = thumbRef.current;
@@ -89,7 +59,42 @@ export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, 
     const dw = tmp.width * scale;
     const dh = tmp.height * scale;
     ctx.drawImage(tmp, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
-  }, [layer.id, layer.originalImage]);
+  }, [layer.id, layer.originalImage, cropMode]);
+
+  // While in crop mode for this layer, the panel collapses to a focused
+  // crop interaction (Apply / Cancel) so the user can't fiddle with other
+  // properties mid-crop.
+  if (cropMode) {
+    return (
+      <>
+        <p className="empty-hint">
+          Drag the crop box on the canvas, then Apply.
+        </p>
+        <div className="control-group">
+          <span>Crop</span>
+          <div className="btn-group">
+            <button
+              type="button"
+              className="active"
+              onClick={onApplyCrop}
+              title="Apply crop"
+              aria-label="Apply crop"
+            ><Check size={16} /> Apply</button>
+            <button
+              type="button"
+              onClick={onCancelCrop}
+              title="Cancel crop"
+              aria-label="Cancel crop"
+            ><X size={16} /> Cancel</button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Crop is disabled when the layer is rotated or flipped because the crop
+  // math assumes an axis-aligned image.
+  const cropDisabled = layer.rotation !== 0 || layer.flipH || layer.flipV;
 
   return (
     <>

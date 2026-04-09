@@ -83,18 +83,7 @@ async def print_label(req: PrintRequest):
     footer = f"P{req.copies}\r\n".encode("ascii")
     payload_bytes = header + inverted + footer
 
-    print(
-        f"Print: {req.width}x{req.height}px ({width_bytes}x{req.height} bytes), "
-        f"label {req.labelW}x{req.labelH}, D{req.darkness} S{req.speed}, "
-        f"payload {len(payload_bytes)} bytes"
-    )
-
-    # Debug dump (now contains binary GW data)
-    with open("/tmp/last_print.epl", "wb") as f:
-        f.write(payload_bytes)
-
     try:
-        print("Opening serial port...")
         with serial.Serial(
             SERIAL_PORT,
             baudrate=BAUD_RATE,
@@ -105,12 +94,11 @@ async def print_label(req: PrintRequest):
             rtscts=True,
         ) as ser:
             ser.write(payload_bytes)
-            print(f"Wrote {len(payload_bytes)} bytes to serial")
             ser.flush()
-            print("Flushed")
-            drain_wait = len(payload_bytes) * 10 / BAUD_RATE + 1
-            time.sleep(drain_wait)
-        print("Serial port closed")
+            # Wait for the UART to drain (10 bits per byte for 8N1) before
+            # the with-block closes the port. Otherwise the bottom of large
+            # bitmaps gets cut off.
+            time.sleep(len(payload_bytes) * 10 / BAUD_RATE + 1)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

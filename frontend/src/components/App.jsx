@@ -663,7 +663,7 @@ export default function App() {
       console.error('Save failed:', err);
       setSaveStatus({ error: err.message ?? 'Save failed' });
     }
-  }, [layers, presetIdx, customW, customH]);
+  }, [layers, presetIdx, customW, customH, labelW, labelH]);
 
   // ── Autosave + session restore ────────────────────────────────────────────
   // On mount, check for an autosaved snapshot and offer to restore it. Until
@@ -702,8 +702,8 @@ export default function App() {
       if (!cancelled) autosaveReadyRef.current = true;
     })();
     return () => { cancelled = true; };
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // run once on mount; the closures intentionally read state at the time
+    // of resolution rather than tracking it via deps.
   }, []);
 
   // Debounced autosave on any state change. Skip until the mount-time
@@ -730,7 +730,7 @@ export default function App() {
       }
     }, 2000);
     return () => clearTimeout(handle);
-  }, [layers, presetIdx, customW, customH]);
+  }, [layers, presetIdx, customW, customH, labelW, labelH]);
 
   // ── Paste image from clipboard ────────────────────────────────────────────
   // Document-level paste listener. Skips when focus is on a text input so the
@@ -804,8 +804,12 @@ export default function App() {
   // Bound at document level so they fire from anywhere except editable fields.
   const layersRef = useRef(layers);
   const selectedRef = useRef(selectedLayerId);
-  layersRef.current = layers;
-  selectedRef.current = selectedLayerId;
+  // Mirror layers + selection into refs so the document-level keydown
+  // listener (bound once) can read fresh values without re-binding.
+  useEffect(() => {
+    layersRef.current = layers;
+    selectedRef.current = selectedLayerId;
+  });
 
   useEffect(() => {
     const isEditable = (el) => {

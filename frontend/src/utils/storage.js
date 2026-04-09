@@ -168,7 +168,8 @@ function serializeLayer(layer) {
 async function deserializeLayer(l) {
   if (l.type === 'image' && l.originalImageDataURL) {
     const originalImage = await dataURLToImageData(l.originalImageDataURL);
-    const { originalImageDataURL, ...rest } = l;
+    // Strip the data URL field — it's been hydrated into ImageData now.
+    const { originalImageDataURL: _stripped, ...rest } = l;
     return { ...rest, originalImage };
   }
   return { ...l };

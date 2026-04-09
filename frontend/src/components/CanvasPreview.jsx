@@ -41,6 +41,11 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   const interactionRef = useRef(null);                  // active pointer interaction
   const [displayScale, setDisplayScale] = useState(0);
 
+  // Mirror the latest props/state into refs so the long-lived pointer
+  // handlers (which only re-bind on identity-stable callbacks) read the
+  // current values without needing to re-attach. The mirroring runs in an
+  // effect so React doesn't flag a "ref accessed during render" violation;
+  // refs are still safe to read inside event handlers and effects.
   const layersRef = useRef(layers);
   const selectedRef = useRef(selectedLayerId);
   const scaleRef = useRef(displayScale);
@@ -48,13 +53,15 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   const labelWRef = useRef(labelW);
   const labelHRef = useRef(labelH);
   const cropModeRef = useRef(cropMode);
-  layersRef.current = layers;
-  selectedRef.current = selectedLayerId;
-  scaleRef.current = displayScale;
-  rotationRef.current = viewportRotation;
-  labelWRef.current = labelW;
-  labelHRef.current = labelH;
-  cropModeRef.current = cropMode;
+  useEffect(() => {
+    layersRef.current = layers;
+    selectedRef.current = selectedLayerId;
+    scaleRef.current = displayScale;
+    rotationRef.current = viewportRotation;
+    labelWRef.current = labelW;
+    labelHRef.current = labelH;
+    cropModeRef.current = cropMode;
+  });
 
   // ── Display scaling ────────────────────────────────────────────────────────
   // Two modes:
@@ -64,8 +71,13 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   //     bounds which.
   //   - True size: a fixed scale that maps each printer dot to its actual
   //     physical width on screen via 96 CSS DPI / 203 printer DPI.
+  // The fit-mode branch sets display scale from a ResizeObserver callback
+  // (correct use of state). The true-size branch syncs a derived value when
+  // a prop changes — disable the cascading-renders rule there since the
+  // settle is intentional and one extra render is fine.
   useEffect(() => {
     if (trueSize) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayScale(computeTrueSizeScale(screenDPI));
       return;
     }
@@ -100,7 +112,10 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     visible.width = labelW;
     visible.height = labelH;
 
+    // Same trueSize branch as the dedicated display-scaling effect; same
+    // intentional cascading-render settle.
     if (trueSize) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayScale(computeTrueSizeScale(screenDPI));
     } else {
       const rect = container.getBoundingClientRect();
@@ -182,7 +197,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode, onPatchLayer]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid

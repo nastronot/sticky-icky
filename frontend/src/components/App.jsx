@@ -519,6 +519,39 @@ export default function App() {
     return () => clearTimeout(handle);
   }, [layers, presetIdx, customW, customH]);
 
+  // ── Scroll-to-increment on number / range inputs ──────────────────────────
+  // Document-level wheel listener: when the cursor is over an <input
+  // type="number"> or <input type="range">, the wheel steps the value
+  // instead of scrolling the page. preventDefault requires the listener
+  // to be non-passive. The new value is written via the React-friendly
+  // prototype setter + dispatched 'input' event so the controlled
+  // component's onChange handler fires normally.
+  useEffect(() => {
+    const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    const onWheel = (e) => {
+      const t = e.target;
+      if (!(t instanceof window.HTMLInputElement)) return;
+      if (t.type !== 'number' && t.type !== 'range') return;
+      if (t.disabled || t.readOnly) return;
+      e.preventDefault();
+      const step = Number(t.step) || 1;
+      const min = t.min !== '' ? Number(t.min) : -Infinity;
+      const max = t.max !== '' ? Number(t.max) : Infinity;
+      const dir = e.deltaY > 0 ? -1 : 1;
+      const cur = Number(t.value) || 0;
+      const raw = cur + dir * step;
+      // Clamp and snap to a sensible decimal precision derived from the
+      // step (so 0.01 steps don't drift into floating-point noise).
+      const decimals = (String(step).split('.')[1] ?? '').length;
+      const clamped = Math.max(min, Math.min(max, raw));
+      const next = Number(clamped.toFixed(decimals));
+      protoSetter.call(t, String(next));
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    document.addEventListener('wheel', onWheel, { passive: false });
+    return () => document.removeEventListener('wheel', onWheel);
+  }, []);
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   // Bound at document level so they fire from anywhere except editable fields.
   const layersRef = useRef(layers);

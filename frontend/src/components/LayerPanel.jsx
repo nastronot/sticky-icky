@@ -2,17 +2,8 @@ import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
   RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
-  Maximize2, Minimize2, Ruler, Square,
+  Maximize2, Minimize2, Ruler, Square, Pencil,
 } from 'lucide-react';
-
-export const PRESETS = [
-  { label: '3.00 × 2.00"', w: 570, h: 406 },
-  { label: '4.00 × 2.00"', w: 832, h: 406 },
-  { label: '4.00 × 3.00"', w: 832, h: 609 },
-  { label: '2.25 × 2.00"', w: 457, h: 406 },
-  { label: '2.25 × 1.25"', w: 457, h: 254 },
-  { label: 'Custom', w: null, h: null },
-];
 
 /** Right-sidebar layer list and global controls. The top section hosts the
  *  label / save / load / print / rotate-view controls; the middle hosts the
@@ -30,8 +21,10 @@ export default function LayerPanel({
   onDuplicate,
   onMoveLayerTo,
   // Global controls (moved here from LayerControls):
+  presets,
   presetIdx,
   onPresetIdxChange,
+  onEditPresets,
   customW,
   onCustomWChange,
   customH,
@@ -99,7 +92,7 @@ export default function LayerPanel({
     setInsertIdx(null);
   };
 
-  const preset = PRESETS[presetIdx];
+  const preset = presets[presetIdx];
 
   return (
     <aside className="layer-panel">
@@ -176,14 +169,23 @@ export default function LayerPanel({
       </div>
 
       <div className="layer-panel-globals">
-        <label className="control-group">
+        <div className="control-group">
           <span>Label size</span>
-          <select value={presetIdx} onChange={e => onPresetIdxChange(Number(e.target.value))}>
-            {PRESETS.map((p, i) => (
-              <option key={p.label} value={i}>{p.label}</option>
-            ))}
-          </select>
-        </label>
+          <div className="label-size-row">
+            <select value={presetIdx} onChange={e => onPresetIdxChange(Number(e.target.value))}>
+              {presets.map((p, i) => (
+                <option key={`${p.label}-${i}`} value={i}>{p.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="label-size-edit"
+              onClick={onEditPresets}
+              title="Edit label sizes"
+              aria-label="Edit label sizes"
+            ><Pencil size={14} /></button>
+          </div>
+        </div>
 
         {preset.w === null && (
           <div className="control-group custom-size">

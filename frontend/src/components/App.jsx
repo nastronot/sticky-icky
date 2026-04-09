@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { encodePrintPayload } from '../utils/epl2.js';
 import CanvasPreview from './CanvasPreview.jsx';
 import LayerControls from './LayerControls.jsx';
-import LayerPanel, { PRESETS } from './LayerPanel.jsx';
+import LayerPanel from './LayerPanel.jsx';
+import PresetEditor from './PresetEditor.jsx';
+import {
+  DEFAULT_PRESETS,
+  loadUserPresets,
+  saveUserPresets,
+  mergedPresets,
+  makeUserPreset,
+} from '../utils/presets.js';
 import { ImagePlus } from 'lucide-react';
 import { measureTextLayer } from '../utils/renderText.js';
 import {
@@ -188,6 +196,9 @@ export default function App() {
   const [cropMode, setCropMode] = useState(null); // null | { layerId, rect: { x, y, w, h } } in image-pixel space
   const [screenDPI, setScreenDPI] = useState(() => loadScreenDPI());
   const [calibrationOpen, setCalibrationOpen] = useState(false);
+  const [userPresets, setUserPresets] = useState(() => loadUserPresets());
+  const [presetEditorOpen, setPresetEditorOpen] = useState(false);
+  const presets = useMemo(() => mergedPresets(userPresets), [userPresets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -196,7 +207,10 @@ export default function App() {
   const dragCounterRef = useRef(0);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
 
-  const preset = PRESETS[presetIdx];
+  // Clamp presetIdx in case the user just deleted the preset that was
+  // currently selected.
+  const safePresetIdx = Math.min(presetIdx, presets.length - 1);
+  const preset = presets[safePresetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
 
@@ -418,6 +432,24 @@ export default function App() {
 
   const handleCalibrationCancel = useCallback(() => {
     setCalibrationOpen(false);
+  }, []);
+
+  // ── Label-size presets ────────────────────────────────────────────────────
+  const handleAddPreset = useCallback((label, widthInches, heightInches) => {
+    const next = makeUserPreset(label, widthInches, heightInches);
+    setUserPresets(prev => {
+      const updated = [...prev, next];
+      saveUserPresets(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleDeletePreset = useCallback((id) => {
+    setUserPresets(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      saveUserPresets(updated);
+      return updated;
+    });
   }, []);
 
   // Refresh the gallery's design list from IndexedDB. Called whenever the
@@ -913,8 +945,10 @@ export default function App() {
         onDelete={deleteLayer}
         onDuplicate={duplicateLayer}
         onMoveLayerTo={moveLayerTo}
-        presetIdx={presetIdx}
+        presets={presets}
+        presetIdx={safePresetIdx}
         onPresetIdxChange={handlePresetIdxChange}
+        onEditPresets={() => setPresetEditorOpen(true)}
         customW={customW}
         onCustomWChange={setCustomW}
         customH={customH}
@@ -957,6 +991,16 @@ export default function App() {
           initialDPI={screenDPI}
           onDone={handleCalibrationDone}
           onCancel={handleCalibrationCancel}
+        />
+      )}
+
+      {presetEditorOpen && (
+        <PresetEditor
+          defaults={DEFAULT_PRESETS}
+          userPresets={userPresets}
+          onAdd={handleAddPreset}
+          onDelete={handleDeletePreset}
+          onClose={() => setPresetEditorOpen(false)}
         />
       )}
     </div>

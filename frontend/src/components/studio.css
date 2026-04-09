@@ -32,10 +32,11 @@
   --status-ok: #6fcf97;
   --status-error: #eb5757;
 
-  /* Favorite — warm orange-yellow, distinct from the primary accent so
-     star toggles still read as a separate semantic. */
-  --favorite: #f2b84b;
-  --favorite-bg: rgba(242, 184, 75, 0.85);
+  /* Favorite stars — share the primary accent yellow so the gallery
+     and preset favourites read as the same brand colour as the rest
+     of the active-state UI. */
+  --favorite: #FED00A;
+  --favorite-bg: rgba(254, 208, 10, 0.85);
 }
 
 /* Three-panel studio layout =============================================== */

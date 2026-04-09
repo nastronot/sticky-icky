@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { encodePrintPayload } from '../utils/epl2.js';
 import CanvasPreview from './CanvasPreview.jsx';
-import LayerControls, { PRESETS } from './LayerControls.jsx';
-import LayerPanel from './LayerPanel.jsx';
+import LayerControls from './LayerControls.jsx';
+import LayerPanel, { PRESETS } from './LayerPanel.jsx';
 import { measureTextLayer } from '../utils/renderText.js';
 import {
   saveDesign,
@@ -596,22 +596,6 @@ export default function App() {
         selectedLayer={selectedLayer}
         onLayerChange={patchSelectedLayer}
         focusTextNonce={focusTextNonce}
-        presetIdx={presetIdx}
-        onPresetIdxChange={handlePresetIdxChange}
-        customW={customW}
-        onCustomWChange={setCustomW}
-        customH={customH}
-        onCustomHChange={setCustomH}
-        onPrint={handlePrint}
-        printStatus={printStatus}
-        copies={copies}
-        onCopiesChange={setCopies}
-        viewportRotation={viewportRotation}
-        onToggleViewportRotation={() => setViewportRotation(r => (r === 0 ? 90 : 0))}
-        onSave={handleSave}
-        saveStatus={saveStatus}
-        onOpenGallery={handleOpenGallery}
-        onNew={handleNewDesign}
       />
 
       <CanvasPreview
@@ -637,6 +621,22 @@ export default function App() {
         onDelete={deleteLayer}
         onDuplicate={duplicateLayer}
         onMoveLayerTo={moveLayerTo}
+        presetIdx={presetIdx}
+        onPresetIdxChange={handlePresetIdxChange}
+        customW={customW}
+        onCustomWChange={setCustomW}
+        customH={customH}
+        onCustomHChange={setCustomH}
+        viewportRotation={viewportRotation}
+        onToggleViewportRotation={() => setViewportRotation(r => (r === 0 ? 90 : 0))}
+        onNew={handleNewDesign}
+        onSave={handleSave}
+        saveStatus={saveStatus}
+        onOpenGallery={handleOpenGallery}
+        onPrint={handlePrint}
+        printStatus={printStatus}
+        copies={copies}
+        onCopiesChange={setCopies}
       />
 
       {galleryOpen && (

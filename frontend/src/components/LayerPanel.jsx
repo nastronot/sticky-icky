@@ -1,8 +1,21 @@
 import { useRef, useState } from 'react';
-import { Eye, EyeOff, Copy, Trash2, Plus } from 'lucide-react';
+import {
+  Eye, EyeOff, Copy, Trash2, Plus,
+  RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
+} from 'lucide-react';
 
-/** Right-sidebar layer list. All three layer types (Big Text, Text, Image)
- *  are addable. Reordering is done via HTML5 drag-and-drop on the rows. */
+export const PRESETS = [
+  { label: '3.00 × 2.00"', w: 570, h: 406 },
+  { label: '4.00 × 2.00"', w: 832, h: 406 },
+  { label: '4.00 × 3.00"', w: 832, h: 609 },
+  { label: '2.25 × 2.00"', w: 457, h: 406 },
+  { label: '2.25 × 1.25"', w: 457, h: 254 },
+  { label: 'Custom', w: null, h: null },
+];
+
+/** Right-sidebar layer list and global controls. The top section hosts the
+ *  label / save / load / print / rotate-view controls; the middle hosts the
+ *  layer list (drag-reorderable); the bottom hosts the Add Layer block. */
 export default function LayerPanel({
   layers,
   selectedLayerId,
@@ -14,6 +27,23 @@ export default function LayerPanel({
   onDelete,
   onDuplicate,
   onMoveLayerTo,
+  // Global controls (moved here from LayerControls):
+  presetIdx,
+  onPresetIdxChange,
+  customW,
+  onCustomWChange,
+  customH,
+  onCustomHChange,
+  viewportRotation,
+  onToggleViewportRotation,
+  onNew,
+  onSave,
+  saveStatus,
+  onOpenGallery,
+  onPrint,
+  printStatus,
+  copies,
+  onCopiesChange,
 }) {
   const fileInputRef = useRef(null);
   const handleAddImageClick = () => fileInputRef.current?.click();
@@ -64,8 +94,105 @@ export default function LayerPanel({
     setInsertIdx(null);
   };
 
+  const preset = PRESETS[presetIdx];
+
   return (
     <aside className="layer-panel">
+      <div className="layer-panel-globals">
+        <label className="control-group">
+          <span>Label size</span>
+          <select value={presetIdx} onChange={e => onPresetIdxChange(Number(e.target.value))}>
+            {PRESETS.map((p, i) => (
+              <option key={p.label} value={i}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+
+        {preset.w === null && (
+          <div className="control-group custom-size">
+            <label>
+              <span>W (in)</span>
+              <input
+                type="number"
+                min={0.5}
+                max={4.09}
+                step={0.01}
+                value={customW}
+                onChange={e => onCustomWChange(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              <span>H (in)</span>
+              <input
+                type="number"
+                min={0.5}
+                max={11.8}
+                step={0.01}
+                value={customH}
+                onChange={e => onCustomHChange(Number(e.target.value))}
+              />
+            </label>
+          </div>
+        )}
+
+        <div className="control-group">
+          <span>Rotate view</span>
+          <div className="btn-group">
+            <button
+              type="button"
+              className={viewportRotation ? 'active' : ''}
+              onClick={onToggleViewportRotation}
+              title={viewportRotation ? 'Rotate back to landscape' : 'Rotate view 90°'}
+              aria-label="Rotate view"
+            >
+              {viewportRotation ? <RotateCcw size={16} /> : <RotateCw size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="btn-group">
+          <button type="button" className="secondary-btn" onClick={onNew} title="New" aria-label="New">
+            <FilePlus size={16} />
+          </button>
+          <button type="button" className="secondary-btn" onClick={onSave} title="Save" aria-label="Save">
+            <Save size={16} />
+          </button>
+          <button type="button" className="secondary-btn" onClick={onOpenGallery} title="Load" aria-label="Load">
+            <FolderOpen size={16} />
+          </button>
+        </div>
+        {saveStatus === 'saved' && <p className="status ok">Saved.</p>}
+        {saveStatus && typeof saveStatus === 'object' && (
+          <p className="status error">Save failed: {saveStatus.error}</p>
+        )}
+
+        <div className="print-row">
+          <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
+            <Printer size={16} />
+            <span>
+              {printStatus === 'printing'
+                ? (copies > 1 ? `Printing ${copies} copies…` : 'Printing…')
+                : 'Print'}
+            </span>
+          </button>
+          <input
+            type="number"
+            className="copies-input"
+            min={1}
+            max={99}
+            step={1}
+            value={copies}
+            onChange={e => onCopiesChange(Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || 1)))}
+            title="Number of copies"
+            aria-label="Copies"
+          />
+        </div>
+        {printStatus === 'ok' && <p className="status ok">Sent to printer.</p>}
+        {printStatus && typeof printStatus === 'object' && (
+          <p className="status error">Error: {printStatus.error}</p>
+        )}
+      </div>
+
       <div className="layer-panel-header">
         <span>Layers</span>
       </div>

@@ -1,7 +1,48 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Star, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChevronLeft, ChevronRight, Star, Trash2, X,
+  Download, Braces, Upload,
+} from 'lucide-react';
+import { renderDesignToCanvas } from '../utils/renderDesign.js';
 
 const PAGE_SIZE = 9;
+
+function safeFilename(name) {
+  return (name || 'design').replace(/[^\w.-]+/g, '_').slice(0, 80) || 'design';
+}
+
+function triggerDownload(href, filename) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function exportDesignAsPNG(design) {
+  try {
+    const canvas = await renderDesignToCanvas(design);
+    const dataURL = canvas.toDataURL('image/png');
+    triggerDownload(dataURL, `${safeFilename(design.name)}.png`);
+  } catch (err) {
+    console.error('PNG export failed:', err);
+    window.alert(`PNG export failed: ${err.message ?? err}`);
+  }
+}
+
+function exportDesignAsJSON(design) {
+  try {
+    const json = JSON.stringify(design, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, `${safeFilename(design.name)}.json`);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    console.error('JSON export failed:', err);
+    window.alert(`JSON export failed: ${err.message ?? err}`);
+  }
+}
 
 function formatBytes(bytes) {
   if (bytes == null) return '?';
@@ -15,7 +56,25 @@ function formatBytes(bytes) {
  * then most-recent. Footer shows the current page indicator and the
  * IndexedDB usage / quota via navigator.storage.estimate().
  */
-export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, onClose }) {
+export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, onImport, onClose }) {
+  const importInputRef = useRef(null);
+  const handleImportClick = () => importInputRef.current?.click();
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || !Array.isArray(parsed.layers)) {
+        throw new Error('Not a valid design file (missing layers array)');
+      }
+      onImport(parsed);
+    } catch (err) {
+      console.error('Import failed:', err);
+      window.alert(`Import failed: ${err.message ?? err}`);
+    }
+  };
   const sorted = useMemo(() => {
     const copy = designs.slice();
     copy.sort((a, b) => {
@@ -65,9 +124,28 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
       <div className="gallery">
         <div className="gallery-header">
           <h2>Saved designs</h2>
-          <button type="button" className="gallery-close" onClick={onClose} aria-label="Close gallery">
-            <X size={16} />
-          </button>
+          <div className="gallery-header-actions">
+            <button
+              type="button"
+              className="gallery-header-btn"
+              onClick={handleImportClick}
+              title="Import design from JSON"
+              aria-label="Import design"
+            >
+              <Upload size={14} />
+              <span>Import</span>
+            </button>
+            <button type="button" className="gallery-close" onClick={onClose} aria-label="Close gallery">
+              <X size={16} />
+            </button>
+          </div>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            onChange={handleImportFile}
+          />
         </div>
 
         {sorted.length === 0 ? (
@@ -105,6 +183,24 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
                   }}
                 >
                   <Trash2 size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="gallery-card-png"
+                  aria-label="Download PNG"
+                  title="Download PNG"
+                  onClick={e => { e.stopPropagation(); exportDesignAsPNG(design); }}
+                >
+                  <Download size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="gallery-card-json"
+                  aria-label="Download JSON"
+                  title="Download JSON"
+                  onClick={e => { e.stopPropagation(); exportDesignAsJSON(design); }}
+                >
+                  <Braces size={14} />
                 </button>
               </div>
             ))}

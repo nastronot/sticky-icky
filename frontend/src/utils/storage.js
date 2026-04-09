@@ -177,7 +177,7 @@ async function deserializeLayer(l) {
 // ── Whole-design serialize / deserialize ──────────────────────────────────────
 
 /** Build a serializable design object from current app state. */
-export function serializeDesign({ name, layers, presetIdx, customW, customH, thumbnail, favorite = false }) {
+export function serializeDesign({ name, layers, presetIdx, customW, customH, labelW, labelH, thumbnail, favorite = false }) {
   return {
     id: `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name,
@@ -187,6 +187,8 @@ export function serializeDesign({ name, layers, presetIdx, customW, customH, thu
     presetIdx,
     customW,
     customH,
+    labelW,
+    labelH,
     layers: layers.map(serializeLayer),
   };
 }

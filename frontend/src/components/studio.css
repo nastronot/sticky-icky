@@ -619,8 +619,41 @@
   justify-content: center;
 }
 
-.gallery-card-fav { left: 6px; }
-.gallery-card-del { right: 6px; }
+.gallery-card-fav { left: 6px; top: 6px; }
+.gallery-card-del { right: 6px; top: 6px; }
+.gallery-card-png { left: 6px; top: auto; bottom: 44px; }
+.gallery-card-json { right: 6px; top: auto; bottom: 44px; }
+
+.gallery-card-png,
+.gallery-card-json {
+  position: absolute;
+}
+
+.gallery-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gallery-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.gallery-header-btn:hover {
+  background: #2e2e2e;
+  color: #fff;
+  border-color: #666;
+}
 
 .gallery-card-fav:hover,
 .gallery-card-del:hover {

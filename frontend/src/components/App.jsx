@@ -457,6 +457,23 @@ export default function App() {
     await refreshGallery();
   }, [refreshGallery]);
 
+  const handleImportDesign = useCallback(async (design) => {
+    try {
+      // Re-stamp id and savedAt so the import doesn't collide with an
+      // existing design that already lives in the store.
+      const stamped = {
+        ...design,
+        id: `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        savedAt: new Date().toISOString(),
+      };
+      await saveDesign(stamped);
+      await refreshGallery();
+    } catch (err) {
+      console.error('Import failed:', err);
+      window.alert(`Import failed: ${err.message ?? err}`);
+    }
+  }, [refreshGallery]);
+
   const handleNewDesign = useCallback(() => {
     const hasContent =
       layers.length > 1 ||
@@ -496,6 +513,8 @@ export default function App() {
         presetIdx,
         customW,
         customH,
+        labelW,
+        labelH,
         thumbnail,
       });
       await saveDesign(design);
@@ -560,6 +579,8 @@ export default function App() {
           presetIdx,
           customW,
           customH,
+          labelW,
+          labelH,
           thumbnail: null,
         });
         // Fire-and-forget — autoSave swallows its own errors and an
@@ -823,6 +844,7 @@ export default function App() {
           onLoad={handleLoadDesign}
           onDelete={handleDeleteDesign}
           onToggleFavorite={handleToggleFavorite}
+          onImport={handleImportDesign}
           onClose={handleCloseGallery}
         />
       )}

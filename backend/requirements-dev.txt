@@ -1,0 +1,8 @@
+# Test-only dependencies. Install with:
+#   . venv/bin/activate
+#   pip install -r requirements-dev.txt
+#
+# Then run:
+#   pytest
+pytest
+httpx

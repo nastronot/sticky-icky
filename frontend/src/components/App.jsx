@@ -5,11 +5,10 @@ import LayerControls from './LayerControls.jsx';
 import LayerPanel from './LayerPanel.jsx';
 import PresetEditor from './PresetEditor.jsx';
 import {
-  DEFAULT_PRESETS,
-  loadUserPresets,
-  saveUserPresets,
-  mergedPresets,
-  makeUserPreset,
+  loadPresets,
+  savePresets,
+  buildDropdownList,
+  makePreset,
 } from '../utils/presets.js';
 import { ImagePlus } from 'lucide-react';
 import { measureTextLayer } from '../utils/renderText.js';
@@ -196,9 +195,9 @@ export default function App() {
   const [cropMode, setCropMode] = useState(null); // null | { layerId, rect: { x, y, w, h } } in image-pixel space
   const [screenDPI, setScreenDPI] = useState(() => loadScreenDPI());
   const [calibrationOpen, setCalibrationOpen] = useState(false);
-  const [userPresets, setUserPresets] = useState(() => loadUserPresets());
+  const [presets, setPresets] = useState(() => loadPresets());
   const [presetEditorOpen, setPresetEditorOpen] = useState(false);
-  const presets = useMemo(() => mergedPresets(userPresets), [userPresets]);
+  const dropdownPresets = useMemo(() => buildDropdownList(presets), [presets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -209,8 +208,8 @@ export default function App() {
 
   // Clamp presetIdx in case the user just deleted the preset that was
   // currently selected.
-  const safePresetIdx = Math.min(presetIdx, presets.length - 1);
-  const preset = presets[safePresetIdx];
+  const safePresetIdx = Math.min(presetIdx, dropdownPresets.length - 1);
+  const preset = dropdownPresets[safePresetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
 
@@ -436,21 +435,40 @@ export default function App() {
 
   // ── Label-size presets ────────────────────────────────────────────────────
   const handleAddPreset = useCallback((label, widthInches, heightInches) => {
-    const next = makeUserPreset(label, widthInches, heightInches);
-    setUserPresets(prev => {
+    const next = makePreset(label, widthInches, heightInches);
+    setPresets(prev => {
       const updated = [...prev, next];
-      saveUserPresets(updated);
+      savePresets(updated);
       return updated;
     });
   }, []);
 
   const handleDeletePreset = useCallback((id) => {
-    setUserPresets(prev => {
+    setPresets(prev => {
+      // Refuse to delete the last remaining preset — the dropdown still has
+      // the Custom sentinel after this, so the user could keep working, but
+      // the spec asks for at least one user-managed preset.
+      if (prev.length <= 1) return prev;
       const updated = prev.filter(p => p.id !== id);
-      saveUserPresets(updated);
+      savePresets(updated);
       return updated;
     });
   }, []);
+
+  const handleToggleFavoritePreset = useCallback((id) => {
+    const updated = presets.map(p => (p.id === id ? { ...p, favorite: !p.favorite } : p));
+    savePresets(updated);
+    setPresets(updated);
+    // Toggling a favorite reorders the dropdown list. Re-find the previously
+    // selected preset by id so the user's selection follows it.
+    const oldList = buildDropdownList(presets);
+    const newList = buildDropdownList(updated);
+    const currentId = oldList[presetIdx]?.id;
+    if (currentId) {
+      const newIdx = newList.findIndex(p => p.id === currentId);
+      if (newIdx >= 0 && newIdx !== presetIdx) setPresetIdx(newIdx);
+    }
+  }, [presets, presetIdx]);
 
   // Refresh the gallery's design list from IndexedDB. Called whenever the
   // gallery opens, after a save, and after a delete / favorite toggle.
@@ -945,7 +963,7 @@ export default function App() {
         onDelete={deleteLayer}
         onDuplicate={duplicateLayer}
         onMoveLayerTo={moveLayerTo}
-        presets={presets}
+        presets={dropdownPresets}
         presetIdx={safePresetIdx}
         onPresetIdxChange={handlePresetIdxChange}
         onEditPresets={() => setPresetEditorOpen(true)}
@@ -996,10 +1014,10 @@ export default function App() {
 
       {presetEditorOpen && (
         <PresetEditor
-          defaults={DEFAULT_PRESETS}
-          userPresets={userPresets}
+          presets={presets}
           onAdd={handleAddPreset}
           onDelete={handleDeletePreset}
+          onToggleFavorite={handleToggleFavoritePreset}
           onClose={() => setPresetEditorOpen(false)}
         />
       )}

@@ -961,7 +961,7 @@
 
 .preset-row {
   display: grid;
-  grid-template-columns: 1fr 1.5fr auto;
+  grid-template-columns: auto 1fr 1.5fr auto;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
@@ -971,8 +971,33 @@
   font-size: 12px;
 }
 
-.preset-row.builtin {
-  opacity: 0.85;
+.preset-fav {
+  width: 26px;
+  height: 26px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #888;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preset-fav:hover {
+  background: #2e2e2e;
+  color: #fff;
+  border-color: #666;
+}
+
+.preset-fav.on {
+  background: rgba(242, 184, 75, 0.85);
+  color: #1a1a1a;
+  border-color: #f2b84b;
+}
+
+.preset-fav.on:hover {
+  background: rgba(242, 184, 75, 1);
 }
 
 .preset-name {
@@ -1011,10 +1036,15 @@
   justify-content: center;
 }
 
-.preset-actions button:hover {
+.preset-actions button:hover:not(:disabled) {
   background: #2e2e2e;
   color: #eb5757;
   border-color: #666;
+}
+
+.preset-actions button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .preset-empty {

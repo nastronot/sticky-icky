@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { X, Trash2, Plus } from 'lucide-react';
+import { X, Trash2, Plus, Star } from 'lucide-react';
 
 const PRINTER_DPI = 203;
 
 /**
- * Modal for managing user-defined label-size presets. Built-in presets are
- * listed in read-only form; user-added presets get a delete button. The
- * Add row at the bottom takes a nickname plus width / height in inches.
+ * Modal for managing label-size presets. Every preset is editable: each
+ * row has a favorite-star toggle and a delete button. The delete button
+ * disables on the last remaining preset so the dropdown can't end up
+ * empty. The Add row at the bottom takes a nickname plus width / height
+ * in inches.
  */
-export default function PresetEditor({ defaults, userPresets, onAdd, onDelete, onClose }) {
+export default function PresetEditor({ presets, onAdd, onDelete, onToggleFavorite, onClose }) {
   const [name, setName] = useState('');
   const [w, setW] = useState(2.0);
   const [h, setH] = useState(1.0);
@@ -25,6 +27,8 @@ export default function PresetEditor({ defaults, userPresets, onAdd, onDelete, o
     if (e.target === e.currentTarget) onClose();
   };
 
+  const lastRemaining = presets.length <= 1;
+
   return (
     <div className="cal-backdrop" onClick={onBackdropClick}>
       <div className="cal-panel preset-panel">
@@ -36,26 +40,31 @@ export default function PresetEditor({ defaults, userPresets, onAdd, onDelete, o
         </div>
 
         <div className="preset-list">
-          {defaults.map((p, i) => (
-            <div key={`d-${i}`} className="preset-row builtin">
-              <span className="preset-name">{p.label}</span>
-              <span className="preset-dims">{p.w} × {p.h} dots</span>
-              <span className="preset-actions">built-in</span>
-            </div>
-          ))}
-          {userPresets.length === 0 && (
-            <p className="preset-empty">No custom presets yet. Add one below.</p>
+          {presets.length === 0 && (
+            <p className="preset-empty">No presets. Add one below.</p>
           )}
-          {userPresets.map((p) => (
+          {presets.map((p) => (
             <div key={p.id} className="preset-row">
+              <button
+                type="button"
+                className={`preset-fav ${p.favorite ? 'on' : ''}`}
+                onClick={() => onToggleFavorite(p.id)}
+                aria-label={p.favorite ? 'Unfavorite' : 'Favorite'}
+                title={p.favorite ? 'Unfavorite' : 'Favorite'}
+              >
+                <Star size={14} fill={p.favorite ? 'currentColor' : 'none'} />
+              </button>
               <span className="preset-name">{p.label}</span>
-              <span className="preset-dims">{p.w} × {p.h} dots ({(p.w / PRINTER_DPI).toFixed(2)} × {(p.h / PRINTER_DPI).toFixed(2)}")</span>
+              <span className="preset-dims">
+                {p.w} × {p.h} dots ({(p.w / PRINTER_DPI).toFixed(2)} × {(p.h / PRINTER_DPI).toFixed(2)}")
+              </span>
               <span className="preset-actions">
                 <button
                   type="button"
                   onClick={() => onDelete(p.id)}
+                  disabled={lastRemaining}
                   aria-label={`Delete ${p.label}`}
-                  title="Delete preset"
+                  title={lastRemaining ? 'At least one preset must remain' : 'Delete preset'}
                 ><Trash2 size={14} /></button>
               </span>
             </div>

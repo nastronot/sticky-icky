@@ -251,7 +251,11 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         const cx = layer.x + layer.width / 2;
         const cy = layer.y + layer.height / 2;
         const ang = (Math.atan2(pt.y - cy, pt.x - cx) * 180) / Math.PI + 90;
-        const norm = ((Math.round(ang) % 360) + 360) % 360;
+        let norm = ((Math.round(ang) % 360) + 360) % 360;
+        // Shift snaps to 45° increments (0, 45, 90, 135, 180, 225, 270, 315).
+        if (e.shiftKey) {
+          norm = (Math.round(norm / 45) * 45) % 360;
+        }
         onPatchLayer(layer.id, { rotation: norm });
       }
     };

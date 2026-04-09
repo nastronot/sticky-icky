@@ -410,7 +410,10 @@
 /* Layer panel (right) ====================================================== */
 
 .layer-panel-header {
-  padding: 14px 16px 10px;
+  /* Bottom padding tuned so the header text → first row content gap
+     matches the inter-row gap (6px header bottom + 0 list top +
+     6px row top = 12px, same as 6px row bottom + 6px row top). */
+  padding: 14px 16px 6px;
   border-bottom: 1px solid var(--border-faint);
   color: var(--text-faint);
   font-size: 11px;
@@ -422,7 +425,7 @@
   flex: 1;
   list-style: none;
   margin: 0;
-  padding: 6px 0;
+  padding: 0 0 6px;
   overflow-y: auto;
 }
 

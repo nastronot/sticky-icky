@@ -242,42 +242,48 @@ export default function LayerPanel({
           </div>
         </div>
 
-        <div className="btn-group">
-          <button type="button" className="secondary-btn" onClick={onNew} title="New" aria-label="New">
-            <FilePlus size={16} />
-          </button>
-          <button type="button" className="secondary-btn" onClick={onSave} title="Save" aria-label="Save">
-            <Save size={16} />
-          </button>
-          <button type="button" className="secondary-btn" onClick={onOpenGallery} title="Load" aria-label="Load">
-            <FolderOpen size={16} />
-          </button>
+        <div className="control-group">
+          <span>File</span>
+          <div className="btn-group">
+            <button type="button" className="secondary-btn" onClick={onNew} title="New" aria-label="New">
+              <FilePlus size={16} />
+            </button>
+            <button type="button" className="secondary-btn" onClick={onSave} title="Save" aria-label="Save">
+              <Save size={16} />
+            </button>
+            <button type="button" className="secondary-btn" onClick={onOpenGallery} title="Load" aria-label="Load">
+              <FolderOpen size={16} />
+            </button>
+          </div>
         </div>
         {saveStatus === 'saved' && <p className="status ok">Saved.</p>}
         {saveStatus && typeof saveStatus === 'object' && (
           <p className="status error">Save failed: {saveStatus.error}</p>
         )}
 
-        <div className="print-row">
-          <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
-            <Printer size={16} />
-            <span>
-              {printStatus === 'printing'
-                ? (copies > 1 ? `Printing ${copies} copies…` : 'Printing…')
-                : 'Print'}
-            </span>
-          </button>
-          <input
-            type="number"
-            className="copies-input"
-            min={1}
-            max={99}
-            step={1}
-            value={copies}
-            onChange={e => onCopiesChange(Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || 1)))}
-            title="Number of copies"
-            aria-label="Copies"
-          />
+        <div className="control-group">
+          <span>Print</span>
+          <div className="print-row">
+            <button className="print-btn" onClick={onPrint} disabled={printStatus === 'printing'}>
+              <Printer size={16} />
+              <span>
+                {printStatus === 'printing'
+                  ? (copies > 1 ? `Printing ${copies} copies…` : 'Printing…')
+                  : 'Print'}
+              </span>
+            </button>
+            <input
+              type="number"
+              className="copies-input"
+              min={1}
+              max={99}
+              step={1}
+              value={copies}
+              onChange={e => onCopiesChange(Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || 1)))}
+              title="Number of copies"
+              aria-label="Copies"
+            />
+          </div>
         </div>
         {printStatus === 'ok' && <p className="status ok">Sent to printer.</p>}
         {printStatus && typeof printStatus === 'object' && (

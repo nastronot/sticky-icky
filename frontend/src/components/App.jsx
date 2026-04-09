@@ -162,6 +162,7 @@ export default function App() {
   const [copies, setCopies] = useState(1);
   const [viewportRotation, setViewportRotation] = useState(0); // 0 | 90 (purely visual)
   const [trueSize, setTrueSize] = useState(false);
+  const [cropMode, setCropMode] = useState(null); // null | { layerId, rect: { x, y, w, h } } in image-pixel space
   const [screenDPI, setScreenDPI] = useState(() => loadScreenDPI());
   const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
@@ -456,6 +457,65 @@ export default function App() {
     }
     await refreshGallery();
   }, [refreshGallery]);
+
+  // ── Image crop tool ───────────────────────────────────────────────────────
+  const enterCropMode = useCallback((layerId) => {
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer || layer.type !== 'image' || !layer.originalImage) return;
+    setCropMode({
+      layerId,
+      rect: { x: 0, y: 0, w: layer.originalImage.width, h: layer.originalImage.height },
+    });
+  }, [layers]);
+
+  const updateCropRect = useCallback((rect) => {
+    setCropMode(c => (c ? { ...c, rect } : null));
+  }, []);
+
+  const cancelCropMode = useCallback(() => {
+    setCropMode(null);
+  }, []);
+
+  const applyCropMode = useCallback(() => {
+    setCropMode(c => {
+      if (!c) return null;
+      const layer = layers.find(l => l.id === c.layerId);
+      if (!layer?.originalImage) return null;
+
+      const orig = layer.originalImage;
+      const x = Math.max(0, Math.min(orig.width - 1, Math.round(c.rect.x)));
+      const y = Math.max(0, Math.min(orig.height - 1, Math.round(c.rect.y)));
+      const w = Math.max(1, Math.min(orig.width - x, Math.round(c.rect.w)));
+      const h = Math.max(1, Math.min(orig.height - y, Math.round(c.rect.h)));
+
+      // Re-paint the original ImageData onto a temp canvas, then read just
+      // the cropped slice as a new ImageData.
+      const tmp = document.createElement('canvas');
+      tmp.width = orig.width;
+      tmp.height = orig.height;
+      tmp.getContext('2d').putImageData(orig, 0, 0);
+      const cropped = tmp.getContext('2d').getImageData(x, y, w, h);
+
+      // Anchor the cropped region's center to where it was before so the
+      // visible content doesn't jump on apply.
+      const oldCenterX = layer.x + ((x + w / 2) / orig.width) * layer.width;
+      const oldCenterY = layer.y + ((y + h / 2) / orig.height) * layer.height;
+      const newWidth = (w / orig.width) * layer.width;
+      const newHeight = (h / orig.height) * layer.height;
+
+      setLayers(ls => ls.map(l => (l.id === c.layerId ? {
+        ...l,
+        originalImage: cropped,
+        naturalW: w,
+        naturalH: h,
+        width: newWidth,
+        height: newHeight,
+        x: oldCenterX - newWidth / 2,
+        y: oldCenterY - newHeight / 2,
+      } : l)));
+      return null;
+    });
+  }, [layers]);
 
   const handleImportDesign = useCallback(async (design) => {
     try {
@@ -790,6 +850,10 @@ export default function App() {
         selectedLayer={selectedLayer}
         onLayerChange={patchSelectedLayer}
         focusTextNonce={focusTextNonce}
+        cropMode={cropMode}
+        onEnterCrop={enterCropMode}
+        onApplyCrop={applyCropMode}
+        onCancelCrop={cancelCropMode}
       />
 
       <CanvasPreview
@@ -804,6 +868,8 @@ export default function App() {
         onSelectLayer={setSelectedLayerId}
         onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}
         onRequestFocusText={requestFocusText}
+        cropMode={cropMode}
+        onUpdateCropRect={updateCropRect}
       />
 
       <LayerPanel

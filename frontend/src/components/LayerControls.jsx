@@ -11,6 +11,10 @@ export default function LayerControls({
   selectedLayer,
   onLayerChange,
   focusTextNonce,
+  cropMode,
+  onEnterCrop,
+  onApplyCrop,
+  onCancelCrop,
 }) {
   return (
     <aside className="layer-controls">
@@ -22,7 +26,14 @@ export default function LayerControls({
           <TextControls layer={selectedLayer} onChange={onLayerChange} focusTextNonce={focusTextNonce} />
         )}
         {selectedLayer?.type === 'image' && (
-          <ImageControls layer={selectedLayer} onChange={onLayerChange} />
+          <ImageControls
+            layer={selectedLayer}
+            onChange={onLayerChange}
+            cropMode={cropMode?.layerId === selectedLayer.id ? cropMode : null}
+            onEnterCrop={() => onEnterCrop(selectedLayer.id)}
+            onApplyCrop={onApplyCrop}
+            onCancelCrop={onCancelCrop}
+          />
         )}
         {!selectedLayer && (
           <p className="empty-hint">Select a layer to edit its properties.</p>

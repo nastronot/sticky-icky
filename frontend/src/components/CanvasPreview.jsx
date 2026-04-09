@@ -28,7 +28,7 @@ function computeTrueSizeScale(screenDPI) {
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
+  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText, cropMode = null, onUpdateCropRect },
   ref,
 ) {
   const isRotated = viewportRotation === 90;
@@ -46,12 +46,14 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   const rotationRef = useRef(viewportRotation);
   const labelWRef = useRef(labelW);
   const labelHRef = useRef(labelH);
+  const cropModeRef = useRef(cropMode);
   layersRef.current = layers;
   selectedRef.current = selectedLayerId;
   scaleRef.current = displayScale;
   rotationRef.current = viewportRotation;
   labelWRef.current = labelW;
   labelHRef.current = labelH;
+  cropModeRef.current = cropMode;
 
   // ── Display scaling ────────────────────────────────────────────────────────
   // Two modes:
@@ -156,20 +158,28 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       xorComposite(visible.getContext('2d'), labelW, labelH, layers, map);
 
       // Draw selection chrome onto the overlay canvas. Sits on top via CSS;
-      // never sampled by the print pipeline.
+      // never sampled by the print pipeline. While in crop mode the crop
+      // rect + handles take over the overlay instead of the selection chrome.
       const overlay = overlayRef.current;
       if (overlay) {
         if (overlay.width !== labelW) overlay.width = labelW;
         if (overlay.height !== labelH) overlay.height = labelH;
         const octx = overlay.getContext('2d');
         octx.clearRect(0, 0, overlay.width, overlay.height);
-        const sel = layers.find(l => l.id === selectedLayerId);
-        if ((sel?.type === 'image' || sel?.type === 'text') && sel.visible) drawSelectionChrome(octx, sel);
+        if (cropMode) {
+          const cropLayer = layers.find(l => l.id === cropMode.layerId);
+          if (cropLayer?.type === 'image' && cropLayer.originalImage) {
+            drawCropChrome(octx, cropLayer, cropMode.rect);
+          }
+        } else {
+          const sel = layers.find(l => l.id === selectedLayerId);
+          if ((sel?.type === 'image' || sel?.type === 'text') && sel.visible) drawSelectionChrome(octx, sel);
+        }
       }
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid
@@ -200,6 +210,38 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       const pt = screenToCanvas(e);
       const ls = layersRef.current;
       const selectedId = selectedRef.current;
+
+      // Crop mode takes over all pointer interaction for the cropped layer.
+      // Hit-test against the crop rect's handles first; falling through to
+      // a body click on the rect starts a move on it instead.
+      const cm = cropModeRef.current;
+      if (cm) {
+        const cropLayer = ls.find(l => l.id === cm.layerId);
+        if (cropLayer?.originalImage) {
+          const cropRectCanvas = cropImageRectToCanvas(cropLayer, cm.rect);
+          const handle = hitCropHandle(pt, cropRectCanvas);
+          if (handle) {
+            beginInteraction(overlay, e, {
+              mode: 'crop-resize',
+              handle,
+              start: pt,
+              startCrop: { ...cm.rect },
+              cropLayer,
+            });
+            return;
+          }
+          if (pointInRect(pt, cropRectCanvas)) {
+            beginInteraction(overlay, e, {
+              mode: 'crop-move',
+              start: pt,
+              startCrop: { ...cm.rect },
+              cropLayer,
+            });
+            return;
+          }
+        }
+        return;
+      }
 
       // 1. If a handle on the currently-selected image/text layer was hit,
       //    start that interaction immediately (handles often poke outside
@@ -245,6 +287,38 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       const pt = screenToCanvas(e);
       const dx = pt.x - ix.start.x;
       const dy = pt.y - ix.start.y;
+
+      // Crop interactions live in the layer's image-pixel space; convert
+      // canvas-space deltas through the layer's display:image ratio.
+      if (ix.mode === 'crop-move' || ix.mode === 'crop-resize') {
+        const L = ix.cropLayer;
+        const sx = L.originalImage.width / L.width;
+        const sy = L.originalImage.height / L.height;
+        const dxImg = dx * sx;
+        const dyImg = dy * sy;
+        let { x, y, w, h } = ix.startCrop;
+        if (ix.mode === 'crop-move') {
+          x += dxImg;
+          y += dyImg;
+          x = Math.max(0, Math.min(L.originalImage.width  - w, x));
+          y = Math.max(0, Math.min(L.originalImage.height - h, y));
+        } else {
+          if (ix.handle.includes('w')) { x += dxImg; w -= dxImg; }
+          if (ix.handle.includes('e')) { w += dxImg; }
+          if (ix.handle.includes('n')) { y += dyImg; h -= dyImg; }
+          if (ix.handle.includes('s')) { h += dyImg; }
+          // Clamp to image bounds with a 1px minimum.
+          if (w < 1) { w = 1; if (ix.handle.includes('w')) x = ix.startCrop.x + ix.startCrop.w - 1; }
+          if (h < 1) { h = 1; if (ix.handle.includes('n')) y = ix.startCrop.y + ix.startCrop.h - 1; }
+          if (x < 0) { w += x; x = 0; }
+          if (y < 0) { h += y; y = 0; }
+          if (x + w > L.originalImage.width)  w = L.originalImage.width  - x;
+          if (y + h > L.originalImage.height) h = L.originalImage.height - y;
+        }
+        onUpdateCropRect({ x, y, w, h });
+        return;
+      }
+
       const layer = ix.layer;
 
       if (ix.mode === 'move') {
@@ -327,7 +401,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [onSelectLayer, onPatchLayer, onRequestFocusText]);
+  }, [onSelectLayer, onPatchLayer, onRequestFocusText, onUpdateCropRect]);
 
   // The stack itself is always sized to the unrotated label dimensions in
   // CSS pixels — that's the underlying canvas's display size. The host
@@ -480,6 +554,88 @@ function computeResize(layer, handle, dx, dy, constrain) {
     x: newCx - w / 2,
     y: newCy - h / 2,
   };
+}
+
+// ── Selection chrome ────────────────────────────────────────────────────────
+
+// ── Crop chrome ─────────────────────────────────────────────────────────────
+
+/** Map a crop rect (image-pixel space) onto the layer's display rect
+ *  (canvas-pixel space). Both spaces are axis-aligned because crop mode is
+ *  only available when the layer's rotation/flip are zero. */
+function cropImageRectToCanvas(layer, rect) {
+  const sx = layer.width  / layer.originalImage.width;
+  const sy = layer.height / layer.originalImage.height;
+  return {
+    x: layer.x + rect.x * sx,
+    y: layer.y + rect.y * sy,
+    w: rect.w * sx,
+    h: rect.h * sy,
+  };
+}
+
+function pointInRect(pt, r) {
+  return pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
+}
+
+function hitCropHandle(pt, r) {
+  const r2 = HANDLE_SIZE / 2 + HANDLE_HIT_PAD;
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  const handles = {
+    nw: { x: r.x,       y: r.y       },
+    n:  { x: cx,        y: r.y       },
+    ne: { x: r.x + r.w, y: r.y       },
+    e:  { x: r.x + r.w, y: cy        },
+    se: { x: r.x + r.w, y: r.y + r.h },
+    s:  { x: cx,        y: r.y + r.h },
+    sw: { x: r.x,       y: r.y + r.h },
+    w:  { x: r.x,       y: cy        },
+  };
+  for (const [name, p] of Object.entries(handles)) {
+    if (Math.abs(pt.x - p.x) <= r2 && Math.abs(pt.y - p.y) <= r2) return name;
+  }
+  return null;
+}
+
+function drawCropChrome(ctx, layer, imageRect) {
+  const r = cropImageRectToCanvas(layer, imageRect);
+
+  // Dim the area outside the crop rect with a translucent black mask. Drawn
+  // by punching the crop rect out of a full-overlay rect via fill-rule.
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.beginPath();
+  ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.rect(r.x + r.w, r.y, -r.w, r.h); // reverse winding so the rect is a hole
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  // Bright dashed crop outline
+  ctx.save();
+  ctx.strokeStyle = '#00d96b';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(r.x, r.y, r.w, r.h);
+  ctx.setLineDash([]);
+
+  // 8 handles
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  const handles = [
+    [r.x, r.y], [cx, r.y], [r.x + r.w, r.y],
+    [r.x + r.w, cy], [r.x + r.w, r.y + r.h], [cx, r.y + r.h],
+    [r.x, r.y + r.h], [r.x, cy],
+  ];
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#00d96b';
+  for (const [x, y] of handles) {
+    ctx.beginPath();
+    ctx.rect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // ── Selection chrome ────────────────────────────────────────────────────────

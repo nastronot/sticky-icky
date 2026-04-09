@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { FlipHorizontal2, FlipVertical2, Lock, Unlock, RotateCcw } from 'lucide-react';
+import { FlipHorizontal2, FlipVertical2, Lock, Unlock, RotateCcw, Crop, Check, X } from 'lucide-react';
 
 const DITHER_ALGOS = [
   { id: 'none',           label: 'None' },
@@ -10,7 +10,40 @@ const DITHER_ALGOS = [
 ];
 
 /** Per-image-layer controls. `onChange(patch)` patches the layer in App. */
-export default function ImageControls({ layer, onChange }) {
+export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, onApplyCrop, onCancelCrop }) {
+  // While in crop mode for this layer, the panel collapses to a focused
+  // crop interaction (Apply / Cancel) so the user can't fiddle with other
+  // properties mid-crop. Crop is disabled when the layer is rotated or
+  // flipped because the crop math assumes an axis-aligned image.
+  if (cropMode) {
+    return (
+      <>
+        <p className="empty-hint">
+          Drag the crop box on the canvas, then Apply.
+        </p>
+        <div className="control-group">
+          <span>Crop</span>
+          <div className="btn-group">
+            <button
+              type="button"
+              className="active"
+              onClick={onApplyCrop}
+              title="Apply crop"
+              aria-label="Apply crop"
+            ><Check size={16} /> Apply</button>
+            <button
+              type="button"
+              onClick={onCancelCrop}
+              title="Cancel crop"
+              aria-label="Cancel crop"
+            ><X size={16} /> Cancel</button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const cropDisabled = layer.rotation !== 0 || layer.flipH || layer.flipV;
   // Aspect lock lives on the layer itself so the canvas resize handles
   // (in CanvasPreview) and the sidebar W/H inputs share one source of truth.
   const lockAspect = layer.lockAspect ?? false;
@@ -103,6 +136,19 @@ export default function ImageControls({ layer, onChange }) {
             onChange={e => onHeightChange(Number(e.target.value))}
           />
         </label>
+      </div>
+
+      <div className="control-group">
+        <span>Crop</span>
+        <div className="btn-group">
+          <button
+            type="button"
+            onClick={onEnterCrop}
+            disabled={cropDisabled}
+            title={cropDisabled ? 'Reset rotation and flip before cropping' : 'Crop image'}
+            aria-label="Crop image"
+          ><Crop size={16} /> Crop</button>
+        </div>
       </div>
 
       <div className="control-group">

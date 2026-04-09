@@ -160,51 +160,53 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
                     : <div className="gallery-card-placeholder">no preview</div>}
                 </div>
                 <div className="gallery-card-meta">
-                  <div className="gallery-card-name" title={design.name}>{design.name}</div>
-                  <div className="gallery-card-date">
-                    {design.savedAt ? new Date(design.savedAt).toLocaleString() : ''}
+                  <div className="gallery-card-meta-text">
+                    <div className="gallery-card-name" title={design.name}>{design.name}</div>
+                    <div className="gallery-card-date">
+                      {design.savedAt ? new Date(design.savedAt).toLocaleString() : ''}
+                    </div>
                   </div>
-                </div>
-                <div className="gallery-card-actions">
-                  <button
-                    type="button"
-                    className={`gallery-card-action ${design.favorite ? 'on' : ''}`}
-                    aria-label={design.favorite ? 'Unfavorite' : 'Favorite'}
-                    title={design.favorite ? 'Unfavorite' : 'Favorite'}
-                    onClick={e => { e.stopPropagation(); onToggleFavorite(design.id); }}
-                  >
-                    <Star size={14} fill={design.favorite ? 'currentColor' : 'none'} />
-                  </button>
-                  <button
-                    type="button"
-                    className="gallery-card-action"
-                    aria-label="Download PNG"
-                    title="Download PNG"
-                    onClick={e => { e.stopPropagation(); exportDesignAsPNG(design); }}
-                  >
-                    <Download size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="gallery-card-action"
-                    aria-label="Download JSON"
-                    title="Download JSON"
-                    onClick={e => { e.stopPropagation(); exportDesignAsJSON(design); }}
-                  >
-                    <Braces size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="gallery-card-action"
-                    aria-label="Delete design"
-                    title="Delete"
-                    onClick={e => {
-                      e.stopPropagation();
-                      if (window.confirm(`Delete "${design.name}"?`)) onDelete(design.id);
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="gallery-card-actions">
+                    <button
+                      type="button"
+                      className={`gallery-card-action ${design.favorite ? 'on' : ''}`}
+                      aria-label={design.favorite ? 'Unfavorite' : 'Favorite'}
+                      title={design.favorite ? 'Unfavorite' : 'Favorite'}
+                      onClick={e => { e.stopPropagation(); onToggleFavorite(design.id); }}
+                    >
+                      <Star size={14} fill={design.favorite ? 'currentColor' : 'none'} />
+                    </button>
+                    <button
+                      type="button"
+                      className="gallery-card-action"
+                      aria-label="Download PNG"
+                      title="Download PNG"
+                      onClick={e => { e.stopPropagation(); exportDesignAsPNG(design); }}
+                    >
+                      <Download size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="gallery-card-action"
+                      aria-label="Download JSON"
+                      title="Download JSON"
+                      onClick={e => { e.stopPropagation(); exportDesignAsJSON(design); }}
+                    >
+                      <Braces size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="gallery-card-action"
+                      aria-label="Delete design"
+                      title="Delete"
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (window.confirm(`Delete "${design.name}"?`)) onDelete(design.id);
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

@@ -584,6 +584,14 @@
 .gallery-card-meta {
   padding: 8px 10px;
   background: #242424;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gallery-card-meta-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .gallery-card-name {
@@ -602,22 +610,19 @@
 }
 
 .gallery-card-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
   display: flex;
   gap: 4px;
-  z-index: 1;
+  flex-shrink: 0;
 }
 
 .gallery-card-action {
   width: 24px;
   height: 24px;
   padding: 0;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #1a1a1a;
+  border: 1px solid #444;
   border-radius: 4px;
-  color: #ccc;
+  color: #aaa;
   cursor: pointer;
   line-height: 1;
   display: inline-flex;
@@ -627,9 +632,9 @@
 }
 
 .gallery-card-action:hover {
-  background: rgba(0, 0, 0, 0.85);
+  background: #2e2e2e;
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: #666;
 }
 
 .gallery-card-action.on {

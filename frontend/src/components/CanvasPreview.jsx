@@ -162,9 +162,11 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       const sx = (e.clientX - rect.left) / scale;
       const sy = (e.clientY - rect.top) / scale;
       if (rotationRef.current === 90) {
-        // 90° CW rotation: a screen point (sx, sy) inside an H × W rotated
-        // rect maps to original canvas (W - sy, sx).
-        return { x: labelWRef.current - sy, y: sx };
+        // 90° CW rotation maps original (x, y) → screen (H - y, x). Inverse:
+        // x = sy (screen Y), y = labelH - sx (labelH minus screen X). Verify
+        // by sanity-checking corners: rotated TL screen (0,0) should resolve
+        // to original BL (0, labelH). screenX=0, screenY=0 → x=0, y=labelH ✓.
+        return { x: sy, y: labelHRef.current - sx };
       }
       return { x: sx, y: sy };
     };

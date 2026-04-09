@@ -1,4 +1,4 @@
-import { FilePlus, Save, FolderOpen, Printer, RotateCw } from 'lucide-react';
+import { FilePlus, Save, FolderOpen, Printer, RotateCw, RotateCcw } from 'lucide-react';
 import BigTextControls from './BigTextControls.jsx';
 import ImageControls from './ImageControls.jsx';
 import TextControls from './TextControls.jsx';
@@ -73,9 +73,11 @@ export default function LayerControls({
               type="button"
               className={viewportRotation ? 'active' : ''}
               onClick={onToggleViewportRotation}
-              title={viewportRotation ? 'Reset to landscape' : 'Rotate view 90°'}
+              title={viewportRotation ? 'Rotate back to landscape' : 'Rotate view 90°'}
               aria-label="Rotate view"
-            ><RotateCw size={16} /></button>
+            >
+              {viewportRotation ? <RotateCcw size={16} /> : <RotateCw size={16} />}
+            </button>
           </div>
         </div>
 

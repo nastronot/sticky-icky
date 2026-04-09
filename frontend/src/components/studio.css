@@ -1,41 +1,39 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   Firefox dark theme palette
+   OLED black theme with yellow/red accents
    ────────────────────────────────────────────────────────────────────────── */
 
 .studio {
-  /* Surfaces */
-  --bg-page: #2b2a33;            /* page / sidebar / modal background */
-  --bg-control: #42414d;         /* input / button / card background */
-  --bg-control-hover: #52525e;   /* button hover */
-  --bg-control-active: #5b5b66;  /* button active / pressed */
+  /* Surfaces — true OLED black for the page; very dark greys for the
+     elevated control surfaces so inputs / cards / hover states have
+     just enough lift to be distinguishable. */
+  --bg-page: #000000;            /* page / sidebar / modal background */
+  --bg-control: #111111;         /* input / button / card background */
+  --bg-control-hover: #1a1a1a;   /* button hover */
+  --bg-control-active: #1a1a1a;  /* button active / pressed */
 
   /* Text */
-  --text: #fbfbfe;               /* default text */
-  --text-muted: #cfcfd8;         /* secondary text */
-  --text-faint: #8f8f9d;         /* labels, hints, placeholders */
+  --text: #ffffff;               /* default text */
+  --text-muted: #cccccc;         /* secondary text */
+  --text-faint: #999999;         /* labels, hints, placeholders */
 
   /* Borders */
-  --border: #8f8f9d;             /* primary border */
-  --border-faint: #52525e;       /* subtle dividers */
+  --border: #2a2a2a;             /* primary border */
+  --border-faint: #2a2a2a;       /* subtle dividers (same on OLED — keeps them invisible against the page) */
 
-  /* Accent — Firefox cyan, used for focus rings, slider track, layer chrome,
-     primary buttons in modals, selection states, drop-zone outline. */
-  --accent: #00ddff;
-  --accent-hover: #66e9ff;
-  --accent-glow: rgba(0, 221, 255, 0.35);
+  /* Accent — sticky-note yellow. Used for focus rings, slider track,
+     layer chrome, primary action buttons, selection states, drop-zone
+     outline. */
+  --accent: #FFE109;
+  --accent-hover: #fff14a;
+  --accent-glow: rgba(255, 225, 9, 0.35);
+  --accent-text: #000000;        /* text on accent backgrounds */
 
-  /* Brand green — reserved for elements thematically tied to the label /
-     print concept (the canvas label preview border and the Print button).
-     Do not use for generic form controls. */
-  --brand-green: #00d96b;
-  --brand-green-hover: #00f078;
-
-  /* Status / accents */
+  /* Status (kept distinct so save/print errors don't read as accents). */
   --status-ok: #6fcf97;
   --status-error: #eb5757;
 
-  /* Favorite (separate accent so star toggles read distinctly from focus
-     state). */
+  /* Favorite — warm orange-yellow, distinct from the primary accent so
+     star toggles still read as a separate semantic. */
   --favorite: #f2b84b;
   --favorite-bg: rgba(242, 184, 75, 0.85);
 }
@@ -155,7 +153,7 @@
 .control-group input[type='range'] {
   padding: 0;
   cursor: pointer;
-  /* Firefox cyan track-fill, focus ring, and thumb via the standard
+  /* Yellow track-fill, focus ring, and thumb via the standard
      accent-color property. */
   accent-color: var(--accent);
 }
@@ -214,9 +212,15 @@
 }
 
 .btn-group button.active {
-  background: var(--bg-control-active);
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--text);
+  color: var(--accent-text);
+}
+
+.btn-group button.active:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-text);
 }
 
 .btn-group button:disabled {
@@ -276,15 +280,15 @@
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
-/* The Print button is one of the two thematically label/print elements that
-   keep the brand green (the other is the canvas label preview border). */
+/* Primary action — yellow background with black text, the loudest
+   element on the page since it's the whole point of the app. */
 .print-btn {
   flex: 1;
   padding: 10px;
-  background: var(--brand-green);
-  border: 1px solid var(--brand-green);
+  background: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: 6px;
-  color: #0a0a0a;
+  color: var(--accent-text);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -296,8 +300,8 @@
 }
 
 .print-btn:hover:not(:disabled) {
-  background: var(--brand-green-hover);
-  border-color: var(--brand-green-hover);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .print-btn:disabled {
@@ -360,16 +364,14 @@
      swapped when isRotated). The stack inside is absolutely centered. */
 }
 
-/* The label preview border is the second thematically label/print element
-   that keeps the brand green — it frames the actual sticker the user is
-   designing. */
+/* No border around the label preview — the white label content reads
+   cleanly against the OLED black canvas wrap on its own. */
 .canvas-stack {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   transform-origin: center;
-  box-shadow: 0 0 0 2px var(--brand-green), 0 4px 24px rgba(0, 0, 0, 0.6);
   transition: transform 0.2s ease;
 }
 
@@ -533,6 +535,21 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Add Layer buttons — primary action style (yellow on black) since
+   they're the entry point to creating new layers. */
+.layer-add .btn-group button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.layer-add .btn-group button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-text);
 }
 
 /* Gallery overlay ============================================================ */
@@ -969,13 +986,12 @@
   border-color: var(--border);
 }
 
-/* Primary modal action buttons (Calibration "Done", Preset "Add") use the
-   Firefox cyan accent. They're generic UI primaries, not label/print
-   thematic, so they don't get the brand green. */
+/* Primary modal action buttons (Calibration "Done", Preset "Add") share
+   the same yellow-on-black accent style as Print and Add Layer. */
 .cal-btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0a0a0a;
+  color: var(--accent-text);
   font-weight: 600;
 }
 

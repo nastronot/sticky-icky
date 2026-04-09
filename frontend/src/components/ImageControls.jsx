@@ -53,7 +53,7 @@ export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, 
     tmp.height = layer.originalImage.height;
     tmp.getContext('2d').putImageData(layer.originalImage, 0, 0);
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#42414d'; // matches --bg-control in studio.css
+    ctx.fillStyle = '#111111'; // matches --bg-control in studio.css
     ctx.fillRect(0, 0, c.width, c.height);
     const scale = Math.min(c.width / tmp.width, c.height / tmp.height);
     const dw = tmp.width * scale;

@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Sticky Zebra app icon: bold diagonal black + green zebra stripes
+  <!-- Sticky Zebra app icon: bold diagonal red + yellow zebra stripes
        inside a clipped circle. Designed to read at small sizes. -->
   <defs>
     <pattern id="stripes" width="160" height="160" patternUnits="userSpaceOnUse" patternTransform="rotate(-28)">
-      <rect width="160" height="160" fill="#0a0a0a"/>
-      <rect x="0" y="0" width="80" height="160" fill="#00d96b"/>
+      <rect width="160" height="160" fill="#EA0909"/>
+      <rect x="0" y="0" width="80" height="160" fill="#FFE109"/>
     </pattern>
     <clipPath id="clip">
       <circle cx="256" cy="256" r="244"/>
@@ -13,5 +13,5 @@
   <g clip-path="url(#clip)">
     <rect width="512" height="512" fill="url(#stripes)"/>
   </g>
-  <circle cx="256" cy="256" r="244" fill="none" stroke="#0a0a0a" stroke-width="16"/>
+  <circle cx="256" cy="256" r="244" fill="none" stroke="#000000" stroke-width="16"/>
 </svg>

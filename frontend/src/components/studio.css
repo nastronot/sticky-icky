@@ -23,9 +23,9 @@
   /* Accent — sticky-note yellow. Used for focus rings, slider track,
      layer chrome, primary action buttons, selection states, drop-zone
      outline. */
-  --accent: #FFE109;
-  --accent-hover: #fff14a;
-  --accent-glow: rgba(255, 225, 9, 0.35);
+  --accent: #FED00A;
+  --accent-hover: #ffdb4a;
+  --accent-glow: rgba(254, 208, 10, 0.35);
   --accent-text: #000000;        /* text on accent backgrounds */
 
   /* Status (kept distinct so save/print errors don't read as accents). */

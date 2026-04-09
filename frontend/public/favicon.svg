@@ -1,17 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Sticky Zebra app icon: bold diagonal red + yellow zebra stripes
-       inside a clipped circle. Designed to read at small sizes. -->
-  <defs>
-    <pattern id="stripes" width="160" height="160" patternUnits="userSpaceOnUse" patternTransform="rotate(-28)">
-      <rect width="160" height="160" fill="#EA0909"/>
-      <rect x="0" y="0" width="80" height="160" fill="#FFE109"/>
-    </pattern>
-    <clipPath id="clip">
-      <circle cx="256" cy="256" r="244"/>
-    </clipPath>
-  </defs>
-  <g clip-path="url(#clip)">
-    <rect width="512" height="512" fill="url(#stripes)"/>
-  </g>
-  <circle cx="256" cy="256" r="244" fill="none" stroke="#000000" stroke-width="16"/>
+  <!-- Sticky Zebra app icon: yellow squircle with a centered red circle.
+       Squircle corner radius is ~20% of the icon edge. The red circle's
+       diameter equals the gap between its edge and the squircle's edge —
+       so circle diameter and each side gap are both icon_size / 3 for a
+       balanced 1:1:1 division across each axis. -->
+  <rect width="512" height="512" rx="102" ry="102" fill="#FED00A"/>
+  <circle cx="256" cy="256" r="85.333" fill="#D00B14"/>
 </svg>

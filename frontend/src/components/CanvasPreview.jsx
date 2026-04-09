@@ -629,9 +629,10 @@ function drawCropChrome(ctx, layer, imageRect) {
   ctx.fill('evenodd');
   ctx.restore();
 
-  // Bright dashed crop outline
+  // Bright dashed crop outline (Firefox cyan accent — matches the rest
+  // of the UI's selection / focus chrome)
   ctx.save();
-  ctx.strokeStyle = '#00d96b';
+  ctx.strokeStyle = '#00ddff';
   ctx.lineWidth = 1.5;
   ctx.setLineDash([6, 4]);
   ctx.strokeRect(r.x, r.y, r.w, r.h);
@@ -646,7 +647,7 @@ function drawCropChrome(ctx, layer, imageRect) {
     [r.x, r.y + r.h], [r.x, cy],
   ];
   ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#00d96b';
+  ctx.strokeStyle = '#00ddff';
   for (const [x, y] of handles) {
     ctx.beginPath();
     ctx.rect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
@@ -666,8 +667,9 @@ function drawSelectionChrome(ctx, layer) {
   ctx.translate(cx, cy);
   ctx.rotate((layer.rotation * Math.PI) / 180);
 
-  // Bounding box outline.
-  ctx.strokeStyle = '#3aa0ff';
+  // Bounding box outline (Firefox cyan accent — matches the rest of the
+  // UI's selection / focus chrome).
+  ctx.strokeStyle = '#00ddff';
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 3]);
   ctx.strokeRect(-layer.width / 2, -layer.height / 2, layer.width, layer.height);
@@ -682,7 +684,7 @@ function drawSelectionChrome(ctx, layer) {
   // Resize handles.
   const handles = handleLocalPoints(layer);
   ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#3aa0ff';
+  ctx.strokeStyle = '#00ddff';
   for (const [name, p] of Object.entries(handles)) {
     if (name === 'rotate') continue;
     ctx.beginPath();

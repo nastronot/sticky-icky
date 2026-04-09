@@ -1,13 +1,56 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Firefox dark theme palette
+   ────────────────────────────────────────────────────────────────────────── */
+
+.studio {
+  /* Surfaces */
+  --bg-page: #2b2a33;            /* page / sidebar / modal background */
+  --bg-control: #42414d;         /* input / button / card background */
+  --bg-control-hover: #52525e;   /* button hover */
+  --bg-control-active: #5b5b66;  /* button active / pressed */
+
+  /* Text */
+  --text: #fbfbfe;               /* default text */
+  --text-muted: #cfcfd8;         /* secondary text */
+  --text-faint: #8f8f9d;         /* labels, hints, placeholders */
+
+  /* Borders */
+  --border: #8f8f9d;             /* primary border */
+  --border-faint: #52525e;       /* subtle dividers */
+
+  /* Accent — Firefox cyan, used for focus rings, slider track, layer chrome,
+     primary buttons in modals, selection states, drop-zone outline. */
+  --accent: #00ddff;
+  --accent-hover: #66e9ff;
+  --accent-glow: rgba(0, 221, 255, 0.35);
+
+  /* Brand green — reserved for elements thematically tied to the label /
+     print concept (the canvas label preview border and the Print button).
+     Do not use for generic form controls. */
+  --brand-green: #00d96b;
+  --brand-green-hover: #00f078;
+
+  /* Status / accents */
+  --status-ok: #6fcf97;
+  --status-error: #eb5757;
+
+  /* Favorite (separate accent so star toggles read distinctly from focus
+     state). */
+  --favorite: #f2b84b;
+  --favorite-bg: rgba(242, 184, 75, 0.85);
+}
+
 /* Three-panel studio layout =============================================== */
 
 .studio {
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: #1a1a1a;
-  color: #e0e0e0;
+  background: var(--bg-page);
+  color: var(--text);
   font-family: system-ui, sans-serif;
   font-size: 13px;
+  color-scheme: dark;
 }
 
 /* Left + right sidebars share dark theme + scrolling behavior */
@@ -16,8 +59,8 @@
 .layer-panel {
   display: flex;
   flex-direction: column;
-  background: #242424;
-  color: #e0e0e0;
+  background: var(--bg-page);
+  color: var(--text);
   font-family: system-ui, sans-serif;
   font-size: 13px;
 }
@@ -25,13 +68,13 @@
 .layer-controls {
   width: 180px;
   min-width: 180px;
-  border-right: 1px solid #333;
+  border-right: 1px solid var(--border-faint);
 }
 
 .layer-panel {
   width: 200px;
   min-width: 200px;
-  border-left: 1px solid #333;
+  border-left: 1px solid var(--border-faint);
 }
 
 .layer-controls-scroll {
@@ -44,7 +87,7 @@
 }
 
 .layer-controls-globals {
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-faint);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -56,12 +99,12 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-faint);
 }
 
 .empty-hint {
   margin: 0;
-  color: #777;
+  color: var(--text-faint);
   font-size: 12px;
   font-style: italic;
 }
@@ -75,7 +118,7 @@
 }
 
 .control-group > span {
-  color: #999;
+  color: var(--text-faint);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -83,7 +126,7 @@
 
 .control-group > span em {
   font-style: normal;
-  color: #e0e0e0;
+  color: var(--text);
   margin-left: 4px;
 }
 
@@ -91,10 +134,10 @@
 .control-group select,
 .control-group input[type='range'],
 .control-group input[type='number'] {
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 6px 8px;
   font-size: 13px;
   font-family: inherit;
@@ -105,38 +148,30 @@
 .control-group select:focus,
 .control-group input:focus {
   outline: none;
-  border-color: #888;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .control-group input[type='range'] {
   padding: 0;
   cursor: pointer;
-  /* Tint the native track-fill, focus ring, and thumb to the brand green
-     instead of the OS blue. Picked up by Chromium, Firefox, and recent
-     WebKit via the standard `accent-color` property. */
-  accent-color: #00d96b;
+  /* Firefox cyan track-fill, focus ring, and thumb via the standard
+     accent-color property. */
+  accent-color: var(--accent);
 }
 
 /* Number input spinners ====================================================
-   The native browser spin buttons render with a light theme by default,
-   which clashes against the dark sidebar. Override to a dark fill and
-   filter the icon arrows to match. */
-
-.control-group input[type='number'],
-.custom-size input[type='number'] {
-  /* `field-sizing: content` would shrink-wrap, but the dark color-scheme
-     hint is what tells Chromium / WebKit to use dark spin buttons. */
-  color-scheme: dark;
-}
+   color-scheme: dark on the .studio root tells Chromium / WebKit / Firefox
+   to render the native spin buttons in dark mode. The pseudo-element
+   overrides below tighten the WebKit visual to match the rest of the
+   sidebar. Firefox respects color-scheme natively and ignores them. */
 
 .control-group input[type='number']::-webkit-inner-spin-button,
 .control-group input[type='number']::-webkit-outer-spin-button,
 .custom-size input[type='number']::-webkit-inner-spin-button,
 .custom-size input[type='number']::-webkit-outer-spin-button {
-  background: #1a1a1a;
-  /* Invert the default near-black arrows on the now-dark background so
-     they read as light grey. */
-  filter: invert(1) brightness(0.85);
+  background: var(--bg-control);
+  filter: invert(1) brightness(0.9);
   opacity: 1;
 }
 
@@ -154,13 +189,13 @@
 .btn-group button {
   flex: 1;
   padding: 5px 0;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -173,14 +208,15 @@
 }
 
 .btn-group button:hover:not(:disabled) {
-  background: #2e2e2e;
-  color: #e0e0e0;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .btn-group button.active {
-  background: #3a3a3a;
-  border-color: #888;
-  color: #fff;
+  background: var(--bg-control-active);
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .btn-group button:disabled {
@@ -218,10 +254,10 @@
 .copies-input {
   width: 48px;
   padding: 6px 4px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 13px;
   font-family: inherit;
   text-align: center;
@@ -236,20 +272,23 @@
 
 .copies-input:focus {
   outline: none;
-  border-color: #888;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
+/* The Print button is one of the two thematically label/print elements that
+   keep the brand green (the other is the canvas label preview border). */
 .print-btn {
   flex: 1;
   padding: 10px;
-  background: #3a3a3a;
-  border: 1px solid #666;
+  background: var(--brand-green);
+  border: 1px solid var(--brand-green);
   border-radius: 6px;
-  color: #fff;
+  color: #0a0a0a;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -257,7 +296,8 @@
 }
 
 .print-btn:hover:not(:disabled) {
-  background: #555;
+  background: var(--brand-green-hover);
+  border-color: var(--brand-green-hover);
 }
 
 .print-btn:disabled {
@@ -268,14 +308,14 @@
 .secondary-btn {
   flex: 1;
   padding: 7px 0;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-muted);
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -283,8 +323,9 @@
 }
 
 .secondary-btn:hover {
-  background: #2e2e2e;
-  color: #fff;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 /* Status =================================================================== */
@@ -295,8 +336,8 @@
   text-align: center;
 }
 
-.status.ok    { color: #6fcf97; }
-.status.error { color: #eb5757; }
+.status.ok    { color: var(--status-ok); }
+.status.error { color: var(--status-error); }
 
 /* Canvas area ============================================================== */
 
@@ -319,13 +360,16 @@
      swapped when isRotated). The stack inside is absolutely centered. */
 }
 
+/* The label preview border is the second thematically label/print element
+   that keeps the brand green — it frames the actual sticker the user is
+   designing. */
 .canvas-stack {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   transform-origin: center;
-  box-shadow: 0 0 0 1px #555, 0 4px 24px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 2px var(--brand-green), 0 4px 24px rgba(0, 0, 0, 0.6);
   transition: transform 0.2s ease;
 }
 
@@ -354,8 +398,8 @@
 .image-thumb {
   width: 148px;
   height: 84px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
   display: block;
 }
@@ -364,8 +408,8 @@
 
 .layer-panel-header {
   padding: 14px 16px 10px;
-  border-bottom: 1px solid #333;
-  color: #999;
+  border-bottom: 1px solid var(--border-faint);
+  color: var(--text-faint);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -386,7 +430,7 @@
 .layer-insert-bar {
   height: 2px;
   margin: 0 8px;
-  background: #3aa0ff;
+  background: var(--accent);
   border-radius: 1px;
   pointer-events: none;
 }
@@ -406,20 +450,20 @@
 }
 
 .layer-row:hover {
-  background: #2e2e2e;
+  background: var(--bg-control-hover);
 }
 
 .layer-row.selected {
-  background: #2e2e2e;
-  border-left-color: #888;
-  color: #fff;
+  background: var(--bg-control-active);
+  border-left-color: var(--accent);
+  color: var(--text);
 }
 
 .layer-vis {
   width: 22px;
   background: none;
   border: none;
-  color: #aaa;
+  color: var(--text-faint);
   font-size: 14px;
   cursor: pointer;
   padding: 0;
@@ -429,7 +473,7 @@
   justify-content: center;
 }
 
-.layer-vis:hover { color: #fff; }
+.layer-vis:hover { color: var(--text); }
 
 .layer-name {
   flex: 1;
@@ -457,7 +501,7 @@
   background: none;
   border: 1px solid transparent;
   border-radius: 3px;
-  color: #888;
+  color: var(--text-faint);
   cursor: pointer;
   line-height: 1;
   display: inline-flex;
@@ -466,9 +510,9 @@
 }
 
 .layer-row-actions button:hover:not(:disabled) {
-  background: #1a1a1a;
-  border-color: #555;
-  color: #e0e0e0;
+  background: var(--bg-control);
+  border-color: var(--border-faint);
+  color: var(--text);
 }
 
 .layer-row-actions button:disabled {
@@ -477,7 +521,7 @@
 }
 
 .layer-add {
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-faint);
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
@@ -485,7 +529,7 @@
 }
 
 .layer-add-label {
-  color: #999;
+  color: var(--text-faint);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -502,7 +546,7 @@
   justify-content: center;
   z-index: 100;
   font-family: system-ui, sans-serif;
-  color: #e0e0e0;
+  color: var(--text);
 }
 
 .gallery {
@@ -510,8 +554,8 @@
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  background: #242424;
-  border: 1px solid #333;
+  background: var(--bg-page);
+  border: 1px solid var(--border-faint);
   border-radius: 8px;
   box-shadow: 0 12px 60px rgba(0, 0, 0, 0.7);
 }
@@ -521,7 +565,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-faint);
 }
 
 .gallery-header h2 {
@@ -529,30 +573,30 @@
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #ccc;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
 .gallery-close {
   width: 28px;
   height: 28px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #aaa;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.gallery-close:hover { background: #2e2e2e; color: #fff; }
+.gallery-close:hover { background: var(--bg-control-hover); color: var(--text); border-color: var(--border); }
 
 .gallery-empty {
   padding: 40px 20px;
   margin: 0;
   text-align: center;
-  color: #777;
+  color: var(--text-faint);
   font-style: italic;
 }
 
@@ -568,8 +612,8 @@
 
 .gallery-card {
   position: relative;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
@@ -577,7 +621,7 @@
 }
 
 .gallery-card:hover {
-  border-color: #888;
+  border-color: var(--accent);
 }
 
 .gallery-card:active {
@@ -603,14 +647,14 @@
 }
 
 .gallery-card-placeholder {
-  color: #888;
+  color: var(--text-faint);
   font-size: 11px;
   font-style: italic;
 }
 
 .gallery-card-meta {
   padding: 8px 10px;
-  background: #242424;
+  background: var(--bg-page);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -622,7 +666,7 @@
 }
 
 .gallery-card-name {
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -630,7 +674,7 @@
 }
 
 .gallery-card-date {
-  color: #777;
+  color: var(--text-faint);
   font-size: 10px;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -646,10 +690,10 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #aaa;
+  color: var(--text-muted);
   cursor: pointer;
   line-height: 1;
   display: inline-flex;
@@ -659,19 +703,19 @@
 }
 
 .gallery-card-action:hover {
-  background: #2e2e2e;
-  color: #fff;
-  border-color: #666;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .gallery-card-action.on {
-  background: rgba(242, 184, 75, 0.85);
+  background: var(--favorite-bg);
   color: #1a1a1a;
-  border-color: #f2b84b;
+  border-color: var(--favorite);
 }
 
 .gallery-card-action.on:hover {
-  background: rgba(242, 184, 75, 1);
+  background: var(--favorite);
   color: #1a1a1a;
 }
 
@@ -686,27 +730,20 @@
   align-items: center;
   gap: 5px;
   padding: 6px 10px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-muted);
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
 }
 
 .gallery-header-btn:hover {
-  background: #2e2e2e;
-  color: #fff;
-  border-color: #666;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
-
-.gallery-card-fav:hover,
-.gallery-card-del:hover {
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-}
-
 
 .gallery-footer {
   display: flex;
@@ -714,15 +751,15 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 20px;
-  border-top: 1px solid #333;
-  background: #1f1f1f;
-  color: #aaa;
+  border-top: 1px solid var(--border-faint);
+  background: var(--bg-page);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .gallery-storage {
   font-variant-numeric: tabular-nums;
-  color: #888;
+  color: var(--text-faint);
 }
 
 .gallery-pager {
@@ -732,7 +769,7 @@
 }
 
 .gallery-page-indicator {
-  color: #ccc;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   min-width: 90px;
   text-align: center;
@@ -742,10 +779,10 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -753,9 +790,9 @@
 }
 
 .gallery-page-btn:hover:not(:disabled) {
-  background: #2e2e2e;
-  color: #fff;
-  border-color: #666;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .gallery-page-btn:disabled {
@@ -793,10 +830,10 @@
   align-items: center;
   gap: 18px;
   padding: 56px 84px;
-  border: 4px dashed #00d96b;
+  border: 4px dashed var(--accent);
   border-radius: 16px;
   background: rgba(10, 10, 10, 0.6);
-  color: #00d96b;
+  color: var(--accent);
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -813,13 +850,13 @@
   justify-content: center;
   z-index: 150;
   font-family: system-ui, sans-serif;
-  color: #e0e0e0;
+  color: var(--text);
 }
 
 .cal-panel {
   width: min(560px, 92vw);
-  background: #242424;
-  border: 1px solid #333;
+  background: var(--bg-page);
+  border: 1px solid var(--border-faint);
   border-radius: 8px;
   box-shadow: 0 12px 60px rgba(0, 0, 0, 0.7);
   display: flex;
@@ -831,7 +868,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border-faint);
 }
 
 .cal-header h2 {
@@ -839,17 +876,17 @@
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #ccc;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
 .cal-close {
   width: 28px;
   height: 28px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #aaa;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -861,11 +898,11 @@
   padding: 18px 22px 12px;
   font-size: 13px;
   line-height: 1.5;
-  color: #bbb;
+  color: var(--text-muted);
 }
 
 .cal-instructions strong {
-  color: #00d96b;
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -879,19 +916,19 @@
 .cal-tick {
   width: 2px;
   height: 32px;
-  background: #00d96b;
+  background: var(--accent);
   flex: 0 0 2px;
 }
 
 .cal-bar {
   height: 8px;
-  background: #00d96b;
+  background: var(--accent);
   /* width set inline */
 }
 
 .cal-readout {
   text-align: center;
-  color: #888;
+  color: var(--text-faint);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   padding: 0 22px 18px;
@@ -899,12 +936,12 @@
 
 .cal-slider {
   margin: 0 22px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
   padding: 0;
   cursor: pointer;
-  accent-color: #00d96b;
+  accent-color: var(--accent);
 }
 
 .cal-actions {
@@ -912,35 +949,39 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 16px 22px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-faint);
 }
 
 .cal-btn {
   padding: 8px 18px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-muted);
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
 }
 
 .cal-btn:hover {
-  background: #2e2e2e;
-  color: #fff;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
+/* Primary modal action buttons (Calibration "Done", Preset "Add") use the
+   Firefox cyan accent. They're generic UI primaries, not label/print
+   thematic, so they don't get the brand green. */
 .cal-btn.primary {
-  background: #00d96b;
-  border-color: #00d96b;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #0a0a0a;
   font-weight: 600;
 }
 
 .cal-btn.primary:hover {
-  background: #00f078;
-  border-color: #00f078;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 /* Label-size row + preset editor =========================================== */
@@ -952,10 +993,10 @@
 
 .label-size-row select {
   flex: 1;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 6px 8px;
   font-size: 13px;
   font-family: inherit;
@@ -963,10 +1004,10 @@
 
 .label-size-edit {
   width: 30px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -974,9 +1015,9 @@
 }
 
 .label-size-edit:hover {
-  background: #2e2e2e;
-  color: #fff;
-  border-color: #666;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .preset-panel {
@@ -998,8 +1039,8 @@
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
   font-size: 12px;
 }
@@ -1007,10 +1048,10 @@
 .preset-fav {
   width: 26px;
   height: 26px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #888;
+  color: var(--text-faint);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -1018,36 +1059,36 @@
 }
 
 .preset-fav:hover {
-  background: #2e2e2e;
-  color: #fff;
-  border-color: #666;
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .preset-fav.on {
-  background: rgba(242, 184, 75, 0.85);
+  background: var(--favorite-bg);
   color: #1a1a1a;
-  border-color: #f2b84b;
+  border-color: var(--favorite);
 }
 
 .preset-fav.on:hover {
-  background: rgba(242, 184, 75, 1);
+  background: var(--favorite);
 }
 
 .preset-name {
-  color: #e0e0e0;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .preset-dims {
-  color: #888;
+  color: var(--text-faint);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
 }
 
 .preset-actions {
-  color: #666;
+  color: var(--text-faint);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1059,10 +1100,10 @@
 .preset-actions button {
   width: 26px;
   height: 26px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #aaa;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -1070,9 +1111,9 @@
 }
 
 .preset-actions button:hover:not(:disabled) {
-  background: #2e2e2e;
-  color: #eb5757;
-  border-color: #666;
+  background: var(--bg-control-hover);
+  color: var(--status-error);
+  border-color: var(--border);
 }
 
 .preset-actions button:disabled {
@@ -1084,7 +1125,7 @@
   margin: 0;
   padding: 12px 8px;
   text-align: center;
-  color: #666;
+  color: var(--text-faint);
   font-size: 12px;
   font-style: italic;
 }
@@ -1094,7 +1135,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 14px 22px 18px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--border-faint);
 }
 
 .preset-add-fields {
@@ -1110,17 +1151,17 @@
 }
 
 .preset-add-fields span {
-  color: #888;
+  color: var(--text-faint);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .preset-add-fields input {
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--text);
   padding: 6px 8px;
   font-size: 13px;
   font-family: inherit;
@@ -1128,7 +1169,8 @@
 
 .preset-add-fields input:focus {
   outline: none;
-  border-color: #888;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .preset-add .cal-btn.primary {

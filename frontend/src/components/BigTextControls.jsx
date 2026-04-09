@@ -81,7 +81,7 @@ export default function BigTextControls({ layer, onChange, focusTextNonce }) {
             onClick={() => set({ bold: false })}
             title="Regular"
             aria-label="Regular weight"
-          ><span className="weight-regular">B</span></button>
+          >R</button>
         </div>
       </div>
 

@@ -364,15 +364,22 @@ export default function App() {
     setPrintStatus(null);
   }, []);
 
-  // Refresh the gallery's design list from localStorage. Called whenever the
+  // Refresh the gallery's design list from IndexedDB. Called whenever the
   // gallery opens, after a save, and after a delete / favorite toggle.
-  const refreshGallery = useCallback(() => {
-    setGalleryDesigns(loadDesigns());
+  const refreshGallery = useCallback(async () => {
+    try {
+      setGalleryDesigns(await loadDesigns());
+    } catch (err) {
+      console.error('Failed to load designs:', err);
+      setGalleryDesigns([]);
+    }
   }, []);
 
   const handleOpenGallery = useCallback(() => {
-    refreshGallery();
     setGalleryOpen(true);
+    // Fire-and-forget — the gallery will re-render with the designs once
+    // the IndexedDB read resolves.
+    refreshGallery();
   }, [refreshGallery]);
 
   const handleCloseGallery = useCallback(() => {
@@ -406,14 +413,22 @@ export default function App() {
     }
   }, [layers]);
 
-  const handleDeleteDesign = useCallback((id) => {
-    storageDeleteDesign(id);
-    refreshGallery();
+  const handleDeleteDesign = useCallback(async (id) => {
+    try {
+      await storageDeleteDesign(id);
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+    await refreshGallery();
   }, [refreshGallery]);
 
-  const handleToggleFavorite = useCallback((id) => {
-    storageToggleFavorite(id);
-    refreshGallery();
+  const handleToggleFavorite = useCallback(async (id) => {
+    try {
+      await storageToggleFavorite(id);
+    } catch (err) {
+      console.error('Toggle favorite failed:', err);
+    }
+    await refreshGallery();
   }, [refreshGallery]);
 
   const handleNewDesign = useCallback(() => {
@@ -442,7 +457,7 @@ export default function App() {
     setCustomH(2.0);
   }, [layers]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const canvas = visibleCanvasRef.current;
     const defaultName = `Design ${new Date().toLocaleString()}`;
     const name = window.prompt('Save design as:', defaultName);
@@ -457,7 +472,7 @@ export default function App() {
         customH,
         thumbnail,
       });
-      saveDesign(design);
+      await saveDesign(design);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(null), 2000);
     } catch (err) {
@@ -474,28 +489,35 @@ export default function App() {
   const autosaveReadyRef = useRef(false);
 
   useEffect(() => {
-    const snap = loadAutoSave();
-    if (snap && window.confirm('Restore last session?')) {
-      deserializeDesign(snap)
-        .then((restored) => {
+    let cancelled = false;
+    (async () => {
+      let snap = null;
+      try {
+        snap = await loadAutoSave();
+      } catch (err) {
+        console.warn('Failed to read autosave:', err);
+      }
+      if (cancelled) return;
+      if (snap && window.confirm('Restore last session?')) {
+        try {
+          const restored = await deserializeDesign(snap);
+          if (cancelled) return;
           suppressNextHistoryRef.current = true;
           setLayers(restored.layers);
           setSelectedLayerId(restored.layers[0]?.id ?? null);
           if (typeof restored.presetIdx === 'number') setPresetIdx(restored.presetIdx);
           if (typeof restored.customW === 'number') setCustomW(restored.customW);
           if (typeof restored.customH === 'number') setCustomH(restored.customH);
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error('Autosave restore failed:', err);
-          clearAutoSave();
-        })
-        .finally(() => {
-          autosaveReadyRef.current = true;
-        });
-    } else {
-      if (snap) clearAutoSave();
-      autosaveReadyRef.current = true;
-    }
+          await clearAutoSave();
+        }
+      } else if (snap) {
+        await clearAutoSave();
+      }
+      if (!cancelled) autosaveReadyRef.current = true;
+    })();
+    return () => { cancelled = true; };
     // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -514,6 +536,8 @@ export default function App() {
           customH,
           thumbnail: null,
         });
+        // Fire-and-forget — autoSave swallows its own errors and an
+        // unhandled rejection here would just be noise.
         autoSave(snap);
       } catch (err) {
         console.warn('Autosave failed:', err);

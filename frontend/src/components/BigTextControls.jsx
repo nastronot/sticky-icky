@@ -6,7 +6,25 @@ import {
   CaseUpper, AArrowDown,
 } from 'lucide-react';
 
-const FONTS = ['Arial Black', 'Impact', 'Courier New', 'Georgia'];
+const FONTS = [
+  'Arial Black',
+  'Impact',
+  'Inter',
+  'Bebas Neue',
+  'Boldonse',
+  'Bungee',
+  'Comic Neue',
+  'Courier New',
+  'Creepster',
+  'Georgia',
+  'Great Vibes',
+  'Jacquarda Bastarda 9',
+  'Jersey 10',
+  'New Rocker',
+  'Press Start 2P',
+  'Silkscreen',
+  'VT323',
+];
 
 const H_ALIGN_ICONS = {
   left:    AlignLeft,

@@ -10,12 +10,23 @@ const HANDLE_HIT_PAD = 4;
 const ROTATION_LINE = 32;
 const ROTATION_RADIUS = 8;
 
+// True-size mode: a fixed display scale that maps each printer dot to its
+// actual physical width on screen, using the standard 96 CSS DPI assumption
+// and dividing by devicePixelRatio so HiDPI/Retina displays don't show the
+// canvas at 2x its physical print size.
+const PRINTER_DPI = 203;
+const SCREEN_CSS_DPI = 96;
+function computeTrueSizeScale() {
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+  return (SCREEN_CSS_DPI / dpr) / PRINTER_DPI;
+}
+
 /**
  * Composited preview of all visible layers + selection chrome + pointer
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, viewportRotation = 0, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
+  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
   ref,
 ) {
   const isRotated = viewportRotation === 90;
@@ -41,10 +52,18 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   labelHRef.current = labelH;
 
   // ── Display scaling ────────────────────────────────────────────────────────
-  // When the viewport is rotated 90° the rotated bounding box swaps width/
-  // height: the visual occupies labelH × labelW in CSS pixels, so the fit
-  // math swaps which axis bounds which.
+  // Two modes:
+  //   - Fit to viewport: scale fills the available container area (the
+  //     existing behavior). When viewport rotation is on, the rotated
+  //     bounding box swaps width/height so the fit math swaps which axis
+  //     bounds which.
+  //   - True size: a fixed scale that maps each printer dot to its actual
+  //     physical width on screen via 96 CSS DPI / 203 printer DPI.
   useEffect(() => {
+    if (trueSize) {
+      setDisplayScale(computeTrueSizeScale());
+      return;
+    }
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
@@ -55,7 +74,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [labelW, labelH, isRotated]);
+  }, [labelW, labelH, isRotated, trueSize]);
 
   // ── Garbage-collect offscreen canvases / dither cache for removed layers ──
   useEffect(() => {
@@ -76,13 +95,17 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     visible.width = labelW;
     visible.height = labelH;
 
-    const rect = container.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      const availW = Math.max(rect.width - 48, 1);
-      const availH = Math.max(rect.height - 48, 1);
-      const fitW = isRotated ? labelH : labelW;
-      const fitH = isRotated ? labelW : labelH;
-      setDisplayScale(Math.min(availW / fitW, availH / fitH));
+    if (trueSize) {
+      setDisplayScale(computeTrueSizeScale());
+    } else {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const availW = Math.max(rect.width - 48, 1);
+        const availH = Math.max(rect.height - 48, 1);
+        const fitW = isRotated ? labelH : labelW;
+        const fitH = isRotated ? labelW : labelH;
+        setDisplayScale(Math.min(availW / fitW, availH / fitH));
+      }
     }
 
     let cancelled = false;
@@ -144,7 +167,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid

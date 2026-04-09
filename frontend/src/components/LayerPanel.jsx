@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
   RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
+  Maximize2, Minimize2,
 } from 'lucide-react';
 
 export const PRESETS = [
@@ -36,6 +37,8 @@ export default function LayerPanel({
   onCustomHChange,
   viewportRotation,
   onToggleViewportRotation,
+  trueSize,
+  onToggleTrueSize,
   onNew,
   onSave,
   saveStatus,
@@ -207,7 +210,7 @@ export default function LayerPanel({
         )}
 
         <div className="control-group">
-          <span>Rotate view</span>
+          <span>View</span>
           <div className="btn-group">
             <button
               type="button"
@@ -217,6 +220,15 @@ export default function LayerPanel({
               aria-label="Rotate view"
             >
               {viewportRotation ? <RotateCcw size={16} /> : <RotateCw size={16} />}
+            </button>
+            <button
+              type="button"
+              className={trueSize ? 'active' : ''}
+              onClick={onToggleTrueSize}
+              title={trueSize ? 'Fit to viewport' : 'True size'}
+              aria-label={trueSize ? 'Fit to viewport' : 'True size'}
+            >
+              {trueSize ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
             </button>
           </div>
         </div>

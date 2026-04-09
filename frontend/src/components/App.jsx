@@ -159,6 +159,7 @@ export default function App() {
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
   const [copies, setCopies] = useState(1);
   const [viewportRotation, setViewportRotation] = useState(0); // 0 | 90 (purely visual)
+  const [trueSize, setTrueSize] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -751,6 +752,7 @@ export default function App() {
         labelW={labelW}
         labelH={labelH}
         viewportRotation={viewportRotation}
+        trueSize={trueSize}
         selectedLayerId={selectedLayerId}
         onSelectLayer={setSelectedLayerId}
         onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}
@@ -776,6 +778,8 @@ export default function App() {
         onCustomHChange={setCustomH}
         viewportRotation={viewportRotation}
         onToggleViewportRotation={() => setViewportRotation(r => (r === 0 ? 90 : 0))}
+        trueSize={trueSize}
+        onToggleTrueSize={() => setTrueSize(t => !t)}
         onNew={handleNewDesign}
         onSave={handleSave}
         saveStatus={saveStatus}

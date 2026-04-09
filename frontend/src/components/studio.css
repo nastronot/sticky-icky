@@ -276,10 +276,13 @@
 .canvas-wrap {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* `safe` centering keeps the canvas centered when it fits but aligns to
+     the start of the scroll area when it overflows (true-size mode on a
+     small viewport), so the upper-left corner is never clipped. */
+  align-items: safe center;
+  justify-content: safe center;
   padding: 24px;
-  overflow: hidden;
+  overflow: auto;
   min-width: 0;
 }
 

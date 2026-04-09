@@ -165,43 +165,47 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
                     {design.savedAt ? new Date(design.savedAt).toLocaleString() : ''}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className={`gallery-card-fav ${design.favorite ? 'on' : ''}`}
-                  aria-label={design.favorite ? 'Unfavorite' : 'Favorite'}
-                  onClick={e => { e.stopPropagation(); onToggleFavorite(design.id); }}
-                >
-                  <Star size={14} fill={design.favorite ? 'currentColor' : 'none'} />
-                </button>
-                <button
-                  type="button"
-                  className="gallery-card-del"
-                  aria-label="Delete design"
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (window.confirm(`Delete "${design.name}"?`)) onDelete(design.id);
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="gallery-card-png"
-                  aria-label="Download PNG"
-                  title="Download PNG"
-                  onClick={e => { e.stopPropagation(); exportDesignAsPNG(design); }}
-                >
-                  <Download size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="gallery-card-json"
-                  aria-label="Download JSON"
-                  title="Download JSON"
-                  onClick={e => { e.stopPropagation(); exportDesignAsJSON(design); }}
-                >
-                  <Braces size={14} />
-                </button>
+                <div className="gallery-card-actions">
+                  <button
+                    type="button"
+                    className={`gallery-card-action ${design.favorite ? 'on' : ''}`}
+                    aria-label={design.favorite ? 'Unfavorite' : 'Favorite'}
+                    title={design.favorite ? 'Unfavorite' : 'Favorite'}
+                    onClick={e => { e.stopPropagation(); onToggleFavorite(design.id); }}
+                  >
+                    <Star size={14} fill={design.favorite ? 'currentColor' : 'none'} />
+                  </button>
+                  <button
+                    type="button"
+                    className="gallery-card-action"
+                    aria-label="Download PNG"
+                    title="Download PNG"
+                    onClick={e => { e.stopPropagation(); exportDesignAsPNG(design); }}
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="gallery-card-action"
+                    aria-label="Download JSON"
+                    title="Download JSON"
+                    onClick={e => { e.stopPropagation(); exportDesignAsJSON(design); }}
+                  >
+                    <Braces size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="gallery-card-action"
+                    aria-label="Delete design"
+                    title="Delete"
+                    onClick={e => {
+                      e.stopPropagation();
+                      if (window.confirm(`Delete "${design.name}"?`)) onDelete(design.id);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

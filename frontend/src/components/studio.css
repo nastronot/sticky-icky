@@ -601,14 +601,20 @@
   font-variant-numeric: tabular-nums;
 }
 
-.gallery-card-fav,
-.gallery-card-del {
+.gallery-card-actions {
   position: absolute;
   top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  z-index: 1;
+}
+
+.gallery-card-action {
   width: 24px;
   height: 24px;
   padding: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   color: #ccc;
@@ -617,16 +623,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
 
-.gallery-card-fav { left: 6px; top: 6px; }
-.gallery-card-del { right: 6px; top: 6px; }
-.gallery-card-png { left: 6px; top: auto; bottom: 44px; }
-.gallery-card-json { right: 6px; top: auto; bottom: 44px; }
+.gallery-card-action:hover {
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
 
-.gallery-card-png,
-.gallery-card-json {
-  position: absolute;
+.gallery-card-action.on {
+  background: rgba(242, 184, 75, 0.85);
+  color: #1a1a1a;
+  border-color: #f2b84b;
+}
+
+.gallery-card-action.on:hover {
+  background: rgba(242, 184, 75, 1);
+  color: #1a1a1a;
 }
 
 .gallery-header-actions {
@@ -661,11 +675,6 @@
   color: #fff;
 }
 
-.gallery-card-fav.on {
-  background: rgba(242, 184, 75, 0.85);
-  color: #1a1a1a;
-  border-color: #f2b84b;
-}
 
 .gallery-footer {
   display: flex;

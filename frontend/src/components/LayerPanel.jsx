@@ -98,6 +98,77 @@ export default function LayerPanel({
 
   return (
     <aside className="layer-panel">
+      <div className="layer-panel-header">
+        <span>Layers</span>
+      </div>
+
+      <ul
+        className="layer-list"
+        onDragOver={onListDragOver}
+        onDrop={onDrop}
+      >
+        {layers.map((layer, idx) => {
+          const selected = layer.id === selectedLayerId;
+          const dragging = layer.id === dragId;
+          return (
+            <li key={layer.id} className="layer-row-wrap">
+              {insertIdx === idx && <div className="layer-insert-bar" />}
+              <div
+                className={`layer-row ${selected ? 'selected' : ''} ${dragging ? 'dragging' : ''}`}
+                onClick={() => onSelect(layer.id)}
+                draggable
+                onDragStart={e => onRowDragStart(e, layer)}
+                onDragOver={e => onRowDragOver(e, idx)}
+                onDrop={onDrop}
+                onDragEnd={onDragEnd}
+              >
+                <button
+                  type="button"
+                  className="layer-vis"
+                  aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
+                  onClick={e => { e.stopPropagation(); onToggleVisibility(layer.id); }}
+                >
+                  {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                </button>
+                <span className="layer-name" title={layer.name}>{layer.name}</span>
+                <div className="layer-row-actions">
+                  <button
+                    type="button"
+                    aria-label="Duplicate layer"
+                    title="Duplicate"
+                    onClick={e => { e.stopPropagation(); onDuplicate(layer.id); }}
+                  ><Copy size={14} /></button>
+                  <button
+                    type="button"
+                    aria-label="Delete layer"
+                    title="Delete"
+                    disabled={layers.length === 1}
+                    onClick={e => { e.stopPropagation(); onDelete(layer.id); }}
+                  ><Trash2 size={14} /></button>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+        {insertIdx === layers.length && <div className="layer-insert-bar" />}
+      </ul>
+
+      <div className="layer-add">
+        <span className="layer-add-label">Add layer</span>
+        <div className="btn-group btn-group-vert">
+          <button type="button" onClick={onAddBigText}><Plus size={14} /> Big Text</button>
+          <button type="button" onClick={onAddText}><Plus size={14} /> Text</button>
+          <button type="button" onClick={handleAddImageClick}><Plus size={14} /> Image</button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+      </div>
+
       <div className="layer-panel-globals">
         <label className="control-group">
           <span>Label size</span>
@@ -191,77 +262,6 @@ export default function LayerPanel({
         {printStatus && typeof printStatus === 'object' && (
           <p className="status error">Error: {printStatus.error}</p>
         )}
-      </div>
-
-      <div className="layer-panel-header">
-        <span>Layers</span>
-      </div>
-
-      <ul
-        className="layer-list"
-        onDragOver={onListDragOver}
-        onDrop={onDrop}
-      >
-        {layers.map((layer, idx) => {
-          const selected = layer.id === selectedLayerId;
-          const dragging = layer.id === dragId;
-          return (
-            <li key={layer.id} className="layer-row-wrap">
-              {insertIdx === idx && <div className="layer-insert-bar" />}
-              <div
-                className={`layer-row ${selected ? 'selected' : ''} ${dragging ? 'dragging' : ''}`}
-                onClick={() => onSelect(layer.id)}
-                draggable
-                onDragStart={e => onRowDragStart(e, layer)}
-                onDragOver={e => onRowDragOver(e, idx)}
-                onDrop={onDrop}
-                onDragEnd={onDragEnd}
-              >
-                <button
-                  type="button"
-                  className="layer-vis"
-                  aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
-                  onClick={e => { e.stopPropagation(); onToggleVisibility(layer.id); }}
-                >
-                  {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                </button>
-                <span className="layer-name" title={layer.name}>{layer.name}</span>
-                <div className="layer-row-actions">
-                  <button
-                    type="button"
-                    aria-label="Duplicate layer"
-                    title="Duplicate"
-                    onClick={e => { e.stopPropagation(); onDuplicate(layer.id); }}
-                  ><Copy size={14} /></button>
-                  <button
-                    type="button"
-                    aria-label="Delete layer"
-                    title="Delete"
-                    disabled={layers.length === 1}
-                    onClick={e => { e.stopPropagation(); onDelete(layer.id); }}
-                  ><Trash2 size={14} /></button>
-                </div>
-              </div>
-            </li>
-          );
-        })}
-        {insertIdx === layers.length && <div className="layer-insert-bar" />}
-      </ul>
-
-      <div className="layer-add">
-        <span className="layer-add-label">Add layer</span>
-        <div className="btn-group btn-group-vert">
-          <button type="button" onClick={onAddBigText}><Plus size={14} /> Big Text</button>
-          <button type="button" onClick={onAddText}><Plus size={14} /> Text</button>
-          <button type="button" onClick={handleAddImageClick}><Plus size={14} /> Image</button>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-        />
       </div>
     </aside>
   );

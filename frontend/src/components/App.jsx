@@ -18,6 +18,8 @@ import {
   clearAutoSave,
 } from '../utils/storage.js';
 import Gallery from './Gallery.jsx';
+import Calibration from './Calibration.jsx';
+import { loadScreenDPI, saveScreenDPI } from '../utils/calibration.js';
 import './studio.css';
 
 const DEFAULT_BIGTEXT = {
@@ -160,6 +162,8 @@ export default function App() {
   const [copies, setCopies] = useState(1);
   const [viewportRotation, setViewportRotation] = useState(0); // 0 | 90 (purely visual)
   const [trueSize, setTrueSize] = useState(false);
+  const [screenDPI, setScreenDPI] = useState(() => loadScreenDPI());
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -363,6 +367,27 @@ export default function App() {
   const handlePresetIdxChange = useCallback((i) => {
     setPresetIdx(i);
     setPrintStatus(null);
+  }, []);
+
+  // True-size toggle: if there's no calibrated DPI yet, the first activation
+  // routes through the calibration modal. Subsequent toggles flip directly.
+  const handleToggleTrueSize = useCallback(() => {
+    if (!trueSize && screenDPI === null) {
+      setCalibrationOpen(true);
+      return;
+    }
+    setTrueSize(t => !t);
+  }, [trueSize, screenDPI]);
+
+  const handleCalibrationDone = useCallback((dpi) => {
+    saveScreenDPI(dpi);
+    setScreenDPI(dpi);
+    setCalibrationOpen(false);
+    setTrueSize(true);
+  }, []);
+
+  const handleCalibrationCancel = useCallback(() => {
+    setCalibrationOpen(false);
   }, []);
 
   // Refresh the gallery's design list from IndexedDB. Called whenever the
@@ -753,6 +778,7 @@ export default function App() {
         labelH={labelH}
         viewportRotation={viewportRotation}
         trueSize={trueSize}
+        screenDPI={screenDPI}
         selectedLayerId={selectedLayerId}
         onSelectLayer={setSelectedLayerId}
         onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}
@@ -779,7 +805,8 @@ export default function App() {
         viewportRotation={viewportRotation}
         onToggleViewportRotation={() => setViewportRotation(r => (r === 0 ? 90 : 0))}
         trueSize={trueSize}
-        onToggleTrueSize={() => setTrueSize(t => !t)}
+        onToggleTrueSize={handleToggleTrueSize}
+        onRecalibrate={() => setCalibrationOpen(true)}
         onNew={handleNewDesign}
         onSave={handleSave}
         saveStatus={saveStatus}
@@ -806,6 +833,14 @@ export default function App() {
           <span>Drop image to add layer</span>
         </div>
       </div>
+
+      {calibrationOpen && (
+        <Calibration
+          initialDPI={screenDPI}
+          onDone={handleCalibrationDone}
+          onCancel={handleCalibrationCancel}
+        />
+      )}
     </div>
   );
 }

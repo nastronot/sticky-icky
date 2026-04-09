@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
   RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Ruler,
 } from 'lucide-react';
 
 export const PRESETS = [
@@ -39,6 +39,7 @@ export default function LayerPanel({
   onToggleViewportRotation,
   trueSize,
   onToggleTrueSize,
+  onRecalibrate,
   onNew,
   onSave,
   saveStatus,
@@ -229,6 +230,14 @@ export default function LayerPanel({
               aria-label={trueSize ? 'Fit to viewport' : 'True size'}
             >
               {trueSize ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+            </button>
+            <button
+              type="button"
+              onClick={onRecalibrate}
+              title="Calibrate screen size"
+              aria-label="Calibrate screen size"
+            >
+              <Ruler size={16} />
             </button>
           </div>
         </div>

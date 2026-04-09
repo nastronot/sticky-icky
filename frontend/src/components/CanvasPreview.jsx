@@ -10,15 +10,16 @@ const HANDLE_HIT_PAD = 4;
 const ROTATION_LINE = 32;
 const ROTATION_RADIUS = 8;
 
-// True-size mode: a fixed display scale that maps each printer dot to its
-// actual physical width on screen, using the standard 96 CSS DPI assumption
-// and dividing by devicePixelRatio so HiDPI/Retina displays don't show the
-// canvas at 2x its physical print size.
+// True-size mode: maps each printer dot to its actual physical width on
+// screen. The screen DPI ideally comes from a calibration step (the user
+// holds a ruler against a known-pixel bar) — without one we fall back to
+// the standard 96 CSS DPI assumption, which is wrong for most modern
+// displays but at least produces a deterministic result.
 const PRINTER_DPI = 203;
-const SCREEN_CSS_DPI = 96;
-function computeTrueSizeScale() {
-  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-  return (SCREEN_CSS_DPI / dpr) / PRINTER_DPI;
+const FALLBACK_SCREEN_DPI = 96;
+function computeTrueSizeScale(screenDPI) {
+  const dpi = Number.isFinite(screenDPI) && screenDPI > 0 ? screenDPI : FALLBACK_SCREEN_DPI;
+  return dpi / PRINTER_DPI;
 }
 
 /**
@@ -26,7 +27,7 @@ function computeTrueSizeScale() {
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
+  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
   ref,
 ) {
   const isRotated = viewportRotation === 90;
@@ -61,7 +62,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   //     physical width on screen via 96 CSS DPI / 203 printer DPI.
   useEffect(() => {
     if (trueSize) {
-      setDisplayScale(computeTrueSizeScale());
+      setDisplayScale(computeTrueSizeScale(screenDPI));
       return;
     }
     const el = containerRef.current;
@@ -74,7 +75,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [labelW, labelH, isRotated, trueSize]);
+  }, [labelW, labelH, isRotated, trueSize, screenDPI]);
 
   // ── Garbage-collect offscreen canvases / dither cache for removed layers ──
   useEffect(() => {
@@ -96,7 +97,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     visible.height = labelH;
 
     if (trueSize) {
-      setDisplayScale(computeTrueSizeScale());
+      setDisplayScale(computeTrueSizeScale(screenDPI));
     } else {
       const rect = container.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
@@ -167,7 +168,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid

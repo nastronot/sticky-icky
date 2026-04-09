@@ -727,3 +727,143 @@
   font-weight: 600;
   letter-spacing: 0.02em;
 }
+
+/* Screen DPI calibration ==================================================== */
+
+.cal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+  font-family: system-ui, sans-serif;
+  color: #e0e0e0;
+}
+
+.cal-panel {
+  width: min(560px, 92vw);
+  background: #242424;
+  border: 1px solid #333;
+  border-radius: 8px;
+  box-shadow: 0 12px 60px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #333;
+}
+
+.cal-header h2 {
+  margin: 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ccc;
+  font-weight: 600;
+}
+
+.cal-close {
+  width: 28px;
+  height: 28px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #aaa;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-instructions {
+  margin: 0;
+  padding: 18px 22px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #bbb;
+}
+
+.cal-instructions strong {
+  color: #00d96b;
+  font-weight: 600;
+}
+
+.cal-ruler-row {
+  display: flex;
+  align-items: center;
+  padding: 30px 22px 6px;
+  min-height: 60px;
+}
+
+.cal-tick {
+  width: 2px;
+  height: 32px;
+  background: #00d96b;
+  flex: 0 0 2px;
+}
+
+.cal-bar {
+  height: 8px;
+  background: #00d96b;
+  /* width set inline */
+}
+
+.cal-readout {
+  text-align: center;
+  color: #888;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 22px 18px;
+}
+
+.cal-slider {
+  margin: 0 22px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.cal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 22px;
+  border-top: 1px solid #333;
+}
+
+.cal-btn {
+  padding: 8px 18px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cal-btn:hover {
+  background: #2e2e2e;
+  color: #fff;
+}
+
+.cal-btn.primary {
+  background: #00d96b;
+  border-color: #00d96b;
+  color: #0a0a0a;
+  font-weight: 600;
+}
+
+.cal-btn.primary:hover {
+  background: #00f078;
+  border-color: #00f078;
+}

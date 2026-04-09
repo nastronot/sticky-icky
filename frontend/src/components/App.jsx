@@ -157,6 +157,7 @@ export default function App() {
   const SPEED = 1;
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
   const [copies, setCopies] = useState(1);
+  const [viewportRotation, setViewportRotation] = useState(0); // 0 | 90 (purely visual)
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -605,6 +606,8 @@ export default function App() {
         printStatus={printStatus}
         copies={copies}
         onCopiesChange={setCopies}
+        viewportRotation={viewportRotation}
+        onToggleViewportRotation={() => setViewportRotation(r => (r === 0 ? 90 : 0))}
         onSave={handleSave}
         saveStatus={saveStatus}
         onOpenGallery={handleOpenGallery}
@@ -616,6 +619,7 @@ export default function App() {
         layers={layers}
         labelW={labelW}
         labelH={labelH}
+        viewportRotation={viewportRotation}
         selectedLayerId={selectedLayerId}
         onSelectLayer={setSelectedLayerId}
         onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}

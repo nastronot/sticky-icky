@@ -15,9 +15,10 @@ const ROTATION_RADIUS = 8;
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
+  { layers, labelW, labelH, viewportRotation = 0, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText },
   ref,
 ) {
+  const isRotated = viewportRotation === 90;
   const containerRef = useRef(null);
   const overlayRef = useRef(null);                      // chrome-only canvas, sits on top of the main one
   const offscreenMapRef = useRef(new Map());            // id → HTMLCanvasElement
@@ -29,21 +30,32 @@ const CanvasPreview = forwardRef(function CanvasPreview(
   const layersRef = useRef(layers);
   const selectedRef = useRef(selectedLayerId);
   const scaleRef = useRef(displayScale);
+  const rotationRef = useRef(viewportRotation);
+  const labelWRef = useRef(labelW);
+  const labelHRef = useRef(labelH);
   layersRef.current = layers;
   selectedRef.current = selectedLayerId;
   scaleRef.current = displayScale;
+  rotationRef.current = viewportRotation;
+  labelWRef.current = labelW;
+  labelHRef.current = labelH;
 
   // ── Display scaling ────────────────────────────────────────────────────────
+  // When the viewport is rotated 90° the rotated bounding box swaps width/
+  // height: the visual occupies labelH × labelW in CSS pixels, so the fit
+  // math swaps which axis bounds which.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
-      setDisplayScale(Math.min(width / labelW, height / labelH));
+      const fitW = isRotated ? labelH : labelW;
+      const fitH = isRotated ? labelW : labelH;
+      setDisplayScale(Math.min(width / fitW, height / fitH));
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [labelW, labelH]);
+  }, [labelW, labelH, isRotated]);
 
   // ── Garbage-collect offscreen canvases / dither cache for removed layers ──
   useEffect(() => {
@@ -68,7 +80,9 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     if (rect.width > 0 && rect.height > 0) {
       const availW = Math.max(rect.width - 48, 1);
       const availH = Math.max(rect.height - 48, 1);
-      setDisplayScale(Math.min(availW / labelW, availH / labelH));
+      const fitW = isRotated ? labelH : labelW;
+      const fitH = isRotated ? labelW : labelH;
+      setDisplayScale(Math.min(availW / fitW, availH / fitH));
     }
 
     let cancelled = false;
@@ -130,7 +144,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid
@@ -140,12 +154,19 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     if (!overlay) return;
 
     const screenToCanvas = (e) => {
+      // The overlay's getBoundingClientRect returns the axis-aligned rect of
+      // the (possibly CSS-rotated) element. (sx, sy) are the click position
+      // inside that rect, in canvas-pixel units.
       const rect = overlay.getBoundingClientRect();
       const scale = scaleRef.current || 1;
-      return {
-        x: (e.clientX - rect.left) / scale,
-        y: (e.clientY - rect.top) / scale,
-      };
+      const sx = (e.clientX - rect.left) / scale;
+      const sy = (e.clientY - rect.top) / scale;
+      if (rotationRef.current === 90) {
+        // 90° CW rotation: a screen point (sx, sy) inside an H × W rotated
+        // rect maps to original canvas (W - sy, sx).
+        return { x: labelWRef.current - sy, y: sx };
+      }
+      return { x: sx, y: sy };
     };
 
     const onPointerDown = (e) => {
@@ -277,28 +298,42 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     };
   }, [onSelectLayer, onPatchLayer, onRequestFocusText]);
 
-  const sizeStyle = {
+  // The stack itself is always sized to the unrotated label dimensions in
+  // CSS pixels — that's the underlying canvas's display size. The host
+  // wraps the stack and is sized to whichever bounding box it occupies on
+  // screen (swapped axes when rotated). The stack inside is absolutely
+  // centered and rotated via CSS transform; the canvas bitmap buffers and
+  // their pixel-level coordinates stay completely unchanged.
+  const stackStyle = {
     width: labelW * displayScale,
     height: labelH * displayScale,
   };
+  const hostStyle = isRotated
+    ? { width: labelH * displayScale, height: labelW * displayScale }
+    : stackStyle;
 
   return (
     <div className="canvas-wrap" ref={containerRef}>
-      <div className="canvas-stack" style={sizeStyle}>
-        <canvas
-          ref={ref}
-          className="canvas-print"
-          width={labelW}
-          height={labelH}
-          style={sizeStyle}
-        />
-        <canvas
-          ref={overlayRef}
-          className="canvas-overlay"
-          width={labelW}
-          height={labelH}
-          style={{ ...sizeStyle, touchAction: 'none' }}
-        />
+      <div
+        className={`canvas-rotation-host ${isRotated ? 'rotated' : ''}`}
+        style={hostStyle}
+      >
+        <div className="canvas-stack" style={stackStyle}>
+          <canvas
+            ref={ref}
+            className="canvas-print"
+            width={labelW}
+            height={labelH}
+            style={stackStyle}
+          />
+          <canvas
+            ref={overlayRef}
+            className="canvas-overlay"
+            width={labelW}
+            height={labelH}
+            style={{ ...stackStyle, touchAction: 'none' }}
+          />
+        </div>
       </div>
     </div>
   );

@@ -275,9 +275,24 @@
   min-width: 0;
 }
 
-.canvas-stack {
+.canvas-rotation-host {
   position: relative;
+  /* The host is sized inline to the rotated bounding box (width/height
+     swapped when isRotated). The stack inside is absolutely centered. */
+}
+
+.canvas-stack {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
   box-shadow: 0 0 0 1px #555, 0 4px 24px rgba(0, 0, 0, 0.6);
+  transition: transform 0.2s ease;
+}
+
+.canvas-rotation-host.rotated > .canvas-stack {
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 .canvas-stack canvas {

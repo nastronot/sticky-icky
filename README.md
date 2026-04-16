@@ -19,33 +19,48 @@ The project started as a browser-based sticker design tool — multi-layer canva
 
 The current architecture writes EPL2 over a USB-to-serial adapter to the printer's DB-9 port at 38400 baud. The frontend renders at native printer resolution; the backend is a thin FastAPI wrapper that packages the bitmap into an EPL2 `GW` payload and writes it to `/dev/ttyUSB0`.
 
-## A note on firmware
+## About the LP2844
+
+### Buying one
+
+LP2844s are everywhere on eBay for $30-60. Search for "Zebra LP2844" and look for listings that include a power supply. UPS-branded, FedEx-branded, and retail Zebra units all work with this project. Budget an extra $10-15 for a USB-to-serial adapter (FTDI-based recommended) if the listing doesn't include a serial cable.
+
+This app speaks **EPL2 only**. Newer Zebra printers (ZD-series, etc.) that speak ZPL won't work without rewriting the backend.
+
+### Labels
+
+Buy **direct-thermal** labels — the kind that turn black when you scratch them with a fingernail. The print head is 832 dots (4.09") wide at 203 DPI. The default label size in the app is 3.00" x 2.00" but you can configure any size. Don't buy thermal-transfer labels (the kind that need a ribbon) — they'll produce blank output.
+
+### Serial connection
+
+You need a **USB-to-serial adapter** connected to the LP2844's DB-9 serial port. Don't use the printer's built-in USB port — the `GW` bitmap command is broken over USB on affected firmware versions. The adapter shows up as `/dev/ttyUSB0` on Linux.
+
+### Checking your firmware version
+
+On many units (especially branded/rebranded firmware), the feed-button shortcut for printing a configuration label is disabled. The reliable way is to send an EPL2 `U` command directly:
+
+```bash
+echo -e "U\r\n" > /dev/ttyUSB0
+```
+
+The printer will print a configuration label with the firmware version on the first line. Common prefixes:
+
+- `UKQ1935 Vx.xx` — stock retail Zebra firmware
+- `UKQ1935 UPS Vx.xx` — UPS-branded
+- `UKQ1935 FDX Vx.xx` — FedEx-branded
+- `UKQ1935HLU Vx.xx` and other three-letter codes — other carrier or VAR rebrands
+
+If your first line contains anything other than `UKQ1935 Vx.xx`, you have a branded variant. Stock Zebra firmware updates will silently fail on these — the update is accepted and acknowledged, then discarded without writing to flash. The unit this project targets is a `UKQ1935HLU` variant; the specific rebrander is unidentified, but the behavior matches the branded-firmware pattern.
+
+None of this matters for Sticky Zebra. The serial `GW` path works reliably regardless of firmware variant.
+
+### Firmware updates
 
 LP2844 units come in two broad flavors: retail Zebra-branded and carrier-branded (UPS, FedEx, etc.). The carrier units ship with modified firmware that's deliberately locked down for the carrier's shipping software, and Zebra's firmware updater silently refuses to flash stock firmware onto them — the update is accepted, acknowledged, and then discarded. Projects like [DCHHV/patch2844](https://github.com/DCHHV/patch2844) exist to work around this, but the process involves dumping both flash ICs in-circuit and reconstructing a patched update file.
 
 Retail Zebra units can usually be updated to the latest stock firmware (V4.70.1A) via Zebra's Z-Downloader tool, which in principle would fix the `GW`-over-USB issue and make this project's serial workaround unnecessary on those units.
 
 The unit this project targets is a retail Zebra running V4.29. An update to V4.70.1A is plausibly possible and might restore USB functionality. It wasn't attempted. The serial path works, it works the same on any LP2844 regardless of firmware version or carrier branding, and there's no failure mode where a mid-flash interruption bricks the printer. That tradeoff — portability and reliability over a potentially cleaner architecture — is why this project lives on serial and stays there.
-
-## What you need
-
-### Printer
-
-A **Zebra LP2844** (or compatible EPL2-only Zebra). These are widely available on eBay for $30-60 — search for "Zebra LP2844" and look for ones that include a power supply. The UPS-branded ones work fine.
-
-**Important**: this app speaks EPL2 only. If your printer supports ZPL (like the newer ZD-series), it won't work without rewriting the backend.
-
-### Cable
-
-A **USB-to-serial adapter** (FTDI or similar) connected to the LP2844's DB-9 serial port. You cannot use the printer's built-in USB port — the `GW` bitmap command is broken over USB on the V4.29 firmware that ships with most LP2844s.
-
-### Labels
-
-**Direct-thermal labels** — the kind that turn black when you scratch them with a fingernail. The print head is 832 dots (4.09") wide at 203 DPI. The default label size is 3.00" x 2.00" but you can configure any size in the app. Don't buy thermal-transfer labels (the kind that need a ribbon) — they'll just produce blank output.
-
-### Server
-
-Any Docker host with a USB port for the serial adapter.
 
 ## Features
 
@@ -93,7 +108,7 @@ Text layers support All Caps, Small Caps, Italic, four horizontal alignments (le
 
 ## Deployment
 
-Images are built automatically by GitHub Actions on every push to `main` and pushed to GHCR.
+Images are built automatically by GitHub Actions on every push to `main` and pushed to GHCR. You need any Docker host with a USB port for the serial adapter.
 
 ```bash
 # Copy docker-compose.prod.yml and .env.example to your server
@@ -156,13 +171,15 @@ The frontend does all the rendering. The backend is ~120 lines — it just valid
 
 ## Troubleshooting
 
-**Blank labels / nothing prints**: Make sure you're using the serial port, not USB. The LP2844's `GW` command doesn't work over USB on V4.29 firmware.
+**Blank labels / nothing prints**: Make sure you're using the serial port, not USB. The LP2844's `GW` command doesn't work over USB on affected firmware. See [Checking your firmware version](#checking-your-firmware-version).
 
 **"Permission denied" on /dev/ttyUSB0**: Run `sudo chmod 666 /dev/ttyUSB0` on the host, or add your user to the `dialout` group. This resets every time you unplug the adapter.
 
 **Print cuts off partway through**: You're probably hitting the printer's 245 KB image buffer limit. Try a shorter label or less dense content.
 
 **Label alignment is off**: The bitmap is offset 80 dots from the left edge of the print head to line up with standard label stock. If your labels are different, adjust the `GW10,0` offset in `backend/main.py`.
+
+**Firmware update won't take**: If you have a carrier-branded unit, stock Zebra firmware updates will be silently discarded. See [Firmware updates](#firmware-updates).
 
 ## Security
 

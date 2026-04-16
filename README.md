@@ -224,13 +224,23 @@ Rebranded units require [DCHHV/patch2844](https://github.com/DCHHV/patch2844), a
 ## Shoutouts
 
 https://github.com/AlpenglowIndustries/Stickers
+
 https://github.com/mtbutler07/xkcd-serial-printer
+
 https://github.com/DCHHV/patch2844
+
 https://github.com/BigJk/snd
+
 https://github.com/MultiMote/niimblue
+
 https://github.com/eljojo/estrella
+
 https://github.com/LingDong-/r1b
+
 https://github.com/nmaggioni/MorningNews
+
 https://github.com/chr15m/print-weather
+
 https://github.com/mazoqui/thermy
+
 https://github.com/HexaCubist/werewolf-receipt

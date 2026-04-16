@@ -17,6 +17,11 @@ Sticky Zebra — browser-based design tool for the Zebra LP2844 thermal printer.
 - **Claude Code** = implementation only, directed by browser prompts
 - Claude Code does not make architectural decisions. Flag ambiguity, don't assume.
 - After each completed task or logical unit of work: commit with a descriptive message. Not after every file edit, not one giant commit per session.
+- Every commit that changes application code (frontend or backend) must also bump the version in `frontend/package.json` following semver (`major.minor.patch`):
+  - **Patch** (`x.y.Z`): bug fixes, small tweaks, refactors
+  - **Minor** (`x.Y.0`): new features, non-breaking additions
+  - **Major** (`X.0.0`): breaking changes, major reworks
+  - If the bump type is ambiguous, ask before committing. Documentation-only or CI-only commits don't require a bump.
 
 ---
 

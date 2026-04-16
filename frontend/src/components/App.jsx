@@ -1026,6 +1026,13 @@ export default function App() {
           onClose={() => setPresetEditorOpen(false)}
         />
       )}
+      <div style={{
+        position: 'fixed', bottom: 8, left: 8,
+        fontSize: 11, color: '#666', pointerEvents: 'none',
+        zIndex: 9999, userSelect: 'none',
+      }}>
+        v{__APP_VERSION__}
+      </div>
     </div>
   );
 }

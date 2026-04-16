@@ -1,176 +1,152 @@
 # Sticky Zebra
 
-Browser-based design tool for printing sticker art on a Zebra LP2844 thermal label printer over serial.
+Browser-based sticker design tool for the Zebra LP2844 thermal label printer.
 
-## What it does
+Design labels in your browser, hit print, and a sticker comes out. Text, images, layers, dithering — everything renders at the printer's native 203 DPI so what you see is what you get.
 
-A multi-layer canvas editor that flattens its output to a 1-bit bitmap at the printer's native 203 DPI and ships it directly to the LP2844 as an EPL2 GW (Direct Graphic Write) command. Designed for hobbyist sticker / label art on direct-thermal label stock — typed text fills the label edge to edge with proper kerning, imported images are dithered for the 1-bit output, and an XOR composite lets layers overlap to cut holes in each other.
+## What you need
+
+### Printer
+
+A **Zebra LP2844** (or compatible EPL2-only Zebra). These are widely available on eBay for $30-60 — search for "Zebra LP2844" and look for ones that include a power supply. The UPS-branded ones work fine.
+
+**Important**: this app speaks EPL2 only. If your printer supports ZPL (like the newer ZD-series), it won't work without rewriting the backend.
+
+### Cable
+
+A **USB-to-serial adapter** (FTDI or similar) connected to the LP2844's DB-9 serial port. You cannot use the printer's built-in USB port — the `GW` bitmap command is broken over USB on the V4.29 firmware that ships with most LP2844s.
+
+### Labels
+
+**Direct-thermal labels** — the kind that turn black when you scratch them with a fingernail. The print head is 832 dots (4.09") wide at 203 DPI. The default label size is 3.00" x 2.00" but you can configure any size in the app. Don't buy thermal-transfer labels (the kind that need a ribbon) — they'll just produce blank output.
+
+### Server
+
+Any Docker host with a USB port for the serial adapter. We run it on a Synology NAS.
 
 ## Features
 
-### Layers and rendering
-- **Big Text** layers — auto-fit to the entire label with binary-search font sizing.
-- **Free Text** layers — user-controlled font size, position, rotation, flip.
-- **Image** layers — drag-and-drop or paste import (PNG/JPG/GIF/WebP), dithering on import (Floyd-Steinberg, Atkinson, ordered Bayer 4×4 / 8×8, threshold-only), interactive crop with a green bounding-box overlay.
-- **Solid Fill** layers — black rectangle for white-on-black backgrounds.
-- **XOR compositing** between layers — overlapping black flips to white. Per-layer toggle to fall back to plain overwrite.
-- **Per-layer dithering, invert, lock-aspect, rotate, flip H/V**.
+### Layers
+- **Big Text** — type something, it auto-sizes to fill the entire label
+- **Free Text** — positioned text with manual font size, rotation, flip
+- **Image** — import PNG/JPG/GIF/WebP via drag-and-drop, paste from clipboard, or file picker. Crop, rotate, scale, flip.
+- **Solid Fill** — black rectangle for white-on-black backgrounds
+
+### Dithering
+Photos and grayscale images need to be converted to pure black and white for the thermal printer. The app includes five dithering algorithms (Floyd-Steinberg, Atkinson, Bayer 4x4, Bayer 8x8, and simple threshold) with an adjustable amount slider. Each layer has its own dithering settings.
+
+### Compositing
+Layers composite with XOR by default — where two black regions overlap, they flip to white. This lets you cut shapes out of other shapes. You can switch any layer to plain overwrite mode instead.
 
 ### Typography
-- 18+ Google Fonts plus the system stack (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
-- All Caps / Small Caps / Italic toggles, four horizontal alignments (left / center / right / justify) plus three vertical alignments for Big Text, letter-spacing slider.
+18 fonts: Arial Black, Barriecito, Bebas Neue, Boldonse, Bungee, Comic Neue, Courier New, Creepster, Georgia, Great Vibes, Impact, Inter, Jacquarda Bastarda 9, Jersey 10, New Rocker, Press Start 2P, Silkscreen, VT323.
 
-### Editor UX
-- Drag, 8 resize handles, rotation arm with 45° snap (shift), shift-to-invert aspect lock, double-click to focus the text input.
-- Drag-and-drop image files or paste images from clipboard.
-- Keyboard shortcuts: arrow nudge (1 px / 10 px with shift), Delete to remove the selected layer, Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for undo / redo, Ctrl/Cmd+D to duplicate, Escape to deselect.
-- Viewport: rotate-view (portrait orientation for tall labels), true-size mode using a calibrated screen DPI.
-- Drag-to-reorder layer list, per-layer visibility toggle, duplicate / delete buttons.
+Text layers support All Caps, Small Caps, Italic, four horizontal alignments (left/center/right/justify), and letter-spacing adjustment. Big Text also has vertical alignment (top/center/bottom).
 
-### File management
-- Save / load designs to IndexedDB with a 3×3 paginated gallery, favorites, search-by-recency, and a storage usage readout.
-- Export designs as full-resolution PNG or as raw JSON.
-- Import previously-exported JSON files.
-- Auto-save with restore-on-load prompt.
+### Editor
+- Drag to move, 8 resize handles, rotation arm (hold Shift for 45-degree snap)
+- Hold Shift while resizing to toggle aspect-ratio lock
+- Double-click a text layer to focus its text input
+- Arrow keys nudge 1px (10px with Shift)
+- Delete removes the selected layer
+- Ctrl+Z / Ctrl+Shift+Z for undo/redo (20 steps)
+- Ctrl+D to duplicate a layer
+- Ctrl+V to paste an image from clipboard
+- Escape to deselect
+
+### Viewport
+- Rotate view 90 degrees for designing tall/narrow labels in landscape orientation
+- True-size mode shows the label at its real physical dimensions (requires a one-time screen calibration)
+
+### Saving and exporting
+- Save/load designs to your browser's local storage (IndexedDB)
+- Gallery with favorites, pagination, and storage usage readout
+- Export as PNG or JSON, import from JSON
+- Auto-save on every change with restore-on-load prompt
 
 ### Printing
-- Single-click print with copies count, density warnings for high-coverage rows.
-- Custom label-size presets (managed in-app, persisted to localStorage).
+- One-click print with configurable copy count
+- Custom label-size presets (add, delete, favorite — saved to localStorage)
 
-## Tech stack
+## Deployment
 
-- **Frontend**: React 19, Vite 8, lucide-react icons, hand-rolled HTML5 Canvas rendering and dithering. No Konva, no image-q, no canvas frameworks.
-- **Backend**: FastAPI + pyserial, single `POST /print` endpoint. ~100 lines.
-- **Storage**: IndexedDB for designs and autosave; localStorage for screen DPI calibration and label-size presets.
-- **Protocol**: EPL2 over serial (38400 baud, 8N1, RTS/CTS) — `GW` Direct Graphic Write for the bitmap, plus the standard `N` / `q` / `Q` / `D` / `S` / `P` setup commands.
-
-## Hardware requirements
-
-- **Zebra LP2844** thermal label printer (or any other EPL2-only Zebra with the same `GW` quirks). Tested on the V4.29 UPS-branded firmware. ZPL printers will not work without rewriting the backend.
-- **USB-to-serial adapter** wired to the LP2844's serial port. The printer's USB port also works as `/dev/usb/lp0` but the `GW` command is broken on that transport for V4.29 — serial is the only working path.
-- **Direct-thermal labels** — anything that fits the print head (832 dots / 4.09" wide max). Default preset is 3.00 × 2.00".
-- A Linux machine with `/dev/ttyUSB0` (or set `SERIAL_PORT` in `backend/main.py` for other paths).
-
-## Setup
+Images are built automatically by GitHub Actions on every push to `main` and pushed to GHCR.
 
 ```bash
-# 1. Clone
-git clone https://github.com/mattwillms/sticky-zebra
-cd sticky-zebra
-
-# 2. Frontend
-cd frontend
-npm install
-
-# 3. Backend
-cd ../backend
-python -m venv venv
-. venv/bin/activate
-pip install -r requirements.txt
-
-# 4. Serial port permissions (one-time per reboot — see "Known limitations")
-sudo chmod 666 /dev/ttyUSB0
-# or persistently:
-sudo usermod -aG dialout $USER   # log out / back in for the group to take effect
-
-# 5. Start the backend
-cd backend
-. venv/bin/activate
-uvicorn main:app --reload --port 8765
-
-# 6. Start the frontend (in another terminal)
-cd frontend
-npm run dev
-
-# 7. Open http://localhost:5173
-```
-
-## Docker deployment
-
-Both apps ship as Docker images. The frontend is an nginx-served Vite build that proxies `/api/` to the backend; the backend is a uvicorn container that needs the host's serial device passed in.
-
-### Local
-
-```bash
-docker-compose up --build
-# frontend: http://localhost:3000  →  backend via /api/
-```
-
-### Production (Synology NAS or any Docker host)
-
-Images are built by GitHub Actions and pushed to GHCR as `ghcr.io/mattwillms/sticky-zebra-frontend:latest` and `:sticky-zebra-backend:latest`. On the host:
-
-```bash
-# Copy docker-compose.prod.yml and .env.example to the host, then:
+# Copy docker-compose.prod.yml and .env.example to your server
 cp .env.example .env
-# Edit .env and set CORS_ORIGINS to your real domain
+# Edit .env — set CORS_ORIGINS to your domain (e.g. https://stickers.example.com)
 
 docker-compose -f docker-compose.prod.yml pull
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-Notes:
+The printer's USB-to-serial adapter must be plugged in before starting — Docker maps `/dev/ttyUSB0` into the backend container.
 
-- `/dev/ttyUSB0` must exist on the host — the USB-to-serial adapter must be plugged in before starting the stack. The backend container maps it straight through via compose `devices:`.
-- `CORS_ORIGINS` is read from `.env` next to the compose file. Copy `.env.example` to `.env` and set it to the public origin serving the frontend. It's a comma-separated list; localhost dev origins are the default when unset.
-- `SERIAL_PORT` overrides `/dev/ttyUSB0` inside the backend container if the host exposes the printer at a different path.
-- The frontend build bakes in `VITE_API_URL=/api` (from `frontend/.env.production`), so nginx must proxy `/api/` to the backend — the included `nginx.conf` already does this.
+Images: `ghcr.io/mattwillms/sticky-zebra-frontend:latest` and `ghcr.io/mattwillms/sticky-zebra-backend:latest`.
+
+The frontend (nginx) serves the app on port 3000 and proxies `/api/` requests to the backend. The backend talks to the printer over serial.
+
+### Environment variables
+
+- `CORS_ORIGINS` — comma-separated allowed origins (set in `.env` next to the compose file)
+- `SERIAL_PORT` — override the default `/dev/ttyUSB0` if your printer is at a different path
+
+### Local dev
+
+```bash
+# Frontend
+cd frontend && npm install && npm run dev
+
+# Backend (separate terminal)
+cd backend && python -m venv venv && . venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8765
+
+# Open http://localhost:5173
+```
 
 ## Architecture
 
 ```
-   ┌─────────────── Browser ────────────────┐
-   │                                         │
-   │  React app                              │
-   │  ├─ Layer state (App.jsx)               │
-   │  ├─ Per-layer offscreen canvases        │
-   │  │     (renderBigText / renderText /    │
-   │  │      renderImage / renderFill)       │
-   │  ├─ XOR composite → visible canvas      │
-   │  └─ encodePrintPayload                  │
-   │       1-bit row-major MSB-first packing │
-   │       base64 encode                     │
-   │                                         │
-   └────────────────┬───────────────────────┘
-                    │
-                    │  POST /print
-                    │  { bitmap, width, height,
-                    │    labelW, labelH,
-                    │    darkness, speed, copies }
-                    ▼
-   ┌─────────────── FastAPI ────────────────┐
-   │                                         │
-   │  validate request                       │
-   │  base64-decode, XOR every byte 0xFF     │
-   │  build EPL2 GW payload:                 │
-   │    \r\n N\r\n q.. Q.. D.. S..           │
-   │    GW10,0,wbytes,h\r\n                  │
-   │    <raw inverted bitmap>                │
-   │    P{copies}\r\n                        │
-   │  pyserial.write(payload)                │
-   │  drain UART                             │
-   │                                         │
-   └────────────────┬───────────────────────┘
-                    │
-                    │  /dev/ttyUSB0
-                    │  38400 baud, 8N1, RTS/CTS
-                    ▼
-              Zebra LP2844
+Browser (React + Canvas)
+  → renders each layer at 203 DPI
+  → XOR composites visible layers
+  → packs 1-bit bitmap, base64 encodes
+  → POST /print
+
+FastAPI backend
+  → validates request
+  → inverts bit polarity (GW expects 0=black)
+  → wraps in EPL2 commands
+  → writes to /dev/ttyUSB0 at 38400 baud
 ```
 
-The frontend renders at the printer's native 203 DPI from the start — no resampling on the backend. The backend's only jobs are validating the JSON envelope, inverting the bit polarity (`GW` wants `0=black`, the frontend ships `1=black`), wrapping the bitmap in EPL2 setup/footer commands, and writing the result to `/dev/ttyUSB0`.
+The frontend does all the rendering. The backend is ~120 lines — it just validates, inverts the bits, wraps the bitmap in EPL2 framing, and writes it to the serial port.
 
-## Known limitations
+## Tech stack
 
-- **LP2844 V4.29 firmware quirks**: this is a UPS-branded variant with a non-functional `GW` command over USB. The repo contains no USB code — serial is the only supported transport. The earlier `LO` (Line Draw) fallback over USB also exists but is gone from this codebase because it can't handle the bitmap density this app produces.
-- **Serial permission resets on reconnect**: every time the USB-to-serial adapter is unplugged and replugged, `/dev/ttyUSB0` comes back at root-only permissions. The persistent fix is the `dialout` group + a relog; the quick fix is `sudo chmod 666 /dev/ttyUSB0`.
-- **245 KB image buffer**: an 832 × 2400 1-bit bitmap is right at the printer's hard limit (~249 KB). Test long labels early — the printer silently truncates beyond the buffer.
-- **High darkness × high speed = failed prints**: D13+ at S2+ overdraws the print head on dense rows and the print stops mid-label. The shipped frontend hard-codes D15 S1, which is the empirically reliable combination for the dense raster art this app generates.
-- **Hardcoded `GW10,0` X offset**: the bitmap is shifted 80 dots right of the head's left edge to line up with the physical label. This is calibrated for the current label stock and mechanical guides. If you change label stock, you may need to re-measure and adjust the offset in `backend/main.py`.
-- **No ZPL support**. EPL2 only. Don't try `^GF`, `^XA`, etc.
-- **Serial port path** defaults to `/dev/ttyUSB0`. Override with the `SERIAL_PORT` env var (must match `/dev/tty*`).
-- **No built-in auth**. The app assumes a trusted network layer in front — Cloudflare Access, a VPN, or LAN-only access. Do not expose the backend directly to the public internet. CORS, rate limiting (10 req/min on `/print`), and request size limits (1 MB) are enforced, but there is no user authentication.
+- **Frontend**: React 19, Vite 8, HTML5 Canvas (no frameworks), lucide-react icons
+- **Backend**: FastAPI, pyserial, slowapi (rate limiting)
+- **Storage**: IndexedDB for designs, localStorage for settings
+- **Protocol**: EPL2 over serial — 38400 baud, 8N1, RTS/CTS hardware flow control
+
+## Troubleshooting
+
+**Blank labels / nothing prints**: Make sure you're using the serial port, not USB. The LP2844's `GW` command doesn't work over USB on V4.29 firmware.
+
+**"Permission denied" on /dev/ttyUSB0**: Run `sudo chmod 666 /dev/ttyUSB0` on the host, or add your user to the `dialout` group. This resets every time you unplug the adapter.
+
+**Print cuts off partway through**: You're probably hitting the printer's 245 KB image buffer limit. Try a shorter label or less dense content.
+
+**Label alignment is off**: The bitmap is offset 80 dots from the left edge of the print head to line up with standard label stock. If your labels are different, adjust the `GW10,0` offset in `backend/main.py`.
+
+## Security
+
+There is no built-in authentication. The app assumes a trusted network layer in front — Cloudflare Access, a VPN, or LAN-only access. Do not expose the backend directly to the public internet.
+
+The backend enforces CORS origin checking, rate limiting (10 requests/minute on `/print`), a 1 MB request size limit, and input validation on all fields.
 
 ## License
 
-Licensed under the [GNU General Public License v3.0](LICENSE). See the `LICENSE` file at the repo root for the full text.
+Licensed under the [GNU General Public License v3.0](LICENSE).

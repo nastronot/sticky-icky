@@ -168,8 +168,8 @@ The frontend renders at the printer's native 203 DPI from the start — no resam
 - **High darkness × high speed = failed prints**: D13+ at S2+ overdraws the print head on dense rows and the print stops mid-label. The shipped frontend hard-codes D15 S1, which is the empirically reliable combination for the dense raster art this app generates.
 - **Hardcoded `GW10,0` X offset**: the bitmap is shifted 80 dots right of the head's left edge to line up with the physical label. This is calibrated for the current label stock and mechanical guides. If you change label stock, you may need to re-measure and adjust the offset in `backend/main.py`.
 - **No ZPL support**. EPL2 only. Don't try `^GF`, `^XA`, etc.
-- **Serial port path is hardcoded** to `/dev/ttyUSB0`. Edit `backend/main.py` if your printer is at a different path.
-- **Local-network use only**. The backend's CORS allowlist is just `localhost:5173` / `:4173` / `:3000` and there's no auth. Don't expose the print endpoint to the internet.
+- **Serial port path** defaults to `/dev/ttyUSB0`. Override with the `SERIAL_PORT` env var (must match `/dev/tty*`).
+- **No built-in auth**. The app assumes a trusted network layer in front — Cloudflare Access, a VPN, or LAN-only access. Do not expose the backend directly to the public internet. CORS, rate limiting (10 req/min on `/print`), and request size limits (1 MB) are enforced, but there is no user authentication.
 
 ## License
 

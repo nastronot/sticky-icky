@@ -108,6 +108,16 @@ Both apps are containerized and deployed to a Synology NAS.
 - `docker-compose.yml` — local testing. Builds both images from source. Frontend on `localhost:3000`.
 - `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, reads `CORS_ORIGINS` from a `.env` file (copy `.env.example` → `.env` and set the real domain), passes `/dev/ttyUSB0` into the backend.
 
+### Security
+
+- **Non-root container**: the backend runs as a `printer` user (UID 1000, GID 20 / dialout) — not root. The dialout group provides access to `/dev/ttyUSB0`.
+- **Request body limit**: nginx enforces a 1 MB `client_max_body_size`; the Pydantic model caps `bitmap` at 1 MB of base64. An 832×2400 1-bit bitmap is ~62 KB base64 — the 1 MB ceiling is generous but well below memory-exhaustion territory.
+- **Rate limiting**: `/print` is limited to 10 requests/minute per IP via slowapi. The `/health` endpoint is not rate-limited.
+- **Input validation**: all `/print` fields are bounded by Pydantic (`width` 8–4096, `height` 1–4096, `darkness` 0–15, `speed` 1–4, `copies` 1–99). Width must be a multiple of 8. Bitmap size must match width×height exactly.
+- **Serial port validation**: `SERIAL_PORT` is regex-validated to `/dev/tty[A-Za-z0-9_]+` at startup — no path traversal, no arbitrary file writes.
+- **CORS**: origin allowlist is read from `CORS_ORIGINS` env var at startup. Requests from unlisted origins are rejected by Starlette's CORS middleware.
+- **Network layer**: the app assumes Cloudflare Access (or equivalent: VPN, LAN-only) in front. There is no built-in authentication. Do not expose the backend directly to the internet.
+
 ---
 
 ## Frontend feature surface (current)

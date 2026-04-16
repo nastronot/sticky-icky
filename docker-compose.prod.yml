@@ -4,7 +4,7 @@ services:
   backend:
     image: ghcr.io/mattwillms/sticky-zebra-backend:latest
     environment:
-      CORS_ORIGINS: https://sticky.example.com
+      CORS_ORIGINS: ${CORS_ORIGINS}
     expose:
       - "8765"
     devices:

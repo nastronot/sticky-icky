@@ -106,7 +106,7 @@ Both apps are containerized and deployed to a Synology NAS.
 ### Compose files
 
 - `docker-compose.yml` — local testing. Builds both images from source. Frontend on `localhost:3000`.
-- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, sets `CORS_ORIGINS=https://sticky.example.com`, passes `/dev/ttyUSB0` into the backend.
+- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, reads `CORS_ORIGINS` from a `.env` file (copy `.env.example` → `.env` and set the real domain), passes `/dev/ttyUSB0` into the backend.
 
 ---
 

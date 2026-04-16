@@ -391,7 +391,8 @@ export default function App() {
       imageData.data, canvas.width, canvas.height, labelW, labelH, DARKNESS, SPEED, copies,
     );
     try {
-      const res = await fetch('http://localhost:8765/print', {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8765';
+      const res = await fetch(`${apiBase}/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

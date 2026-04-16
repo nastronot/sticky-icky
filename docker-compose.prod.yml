@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  backend:
+    image: ghcr.io/mattwillms/sticky-zebra-backend:latest
+    environment:
+      CORS_ORIGINS: https://sticky.willms.co
+    expose:
+      - "8765"
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/mattwillms/sticky-zebra-frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -1,4 +1,5 @@
 import base64
+import os
 import time
 
 import serial
@@ -8,18 +9,21 @@ from pydantic import BaseModel, Field
 
 app = FastAPI()
 
+_default_origins = "http://localhost:5173,http://localhost:4173,http://localhost:3000"
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:4173",
-        "http://localhost:3000",
-    ],
+    allow_origins=_cors_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
 
-SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_PORT = os.environ.get("SERIAL_PORT", "/dev/ttyUSB0")
 BAUD_RATE = 38400
 
 

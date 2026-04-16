@@ -5,8 +5,7 @@ services:
     build: ./backend
     expose:
       - "8765"
-    devices:
-      - "/dev/ttyUSB0:/dev/ttyUSB0"
+    privileged: true
     restart: unless-stopped
 
   frontend:

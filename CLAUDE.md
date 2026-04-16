@@ -91,7 +91,7 @@ Both apps are containerized and deployed to a Synology NAS.
 ### Architecture
 
 - **frontend** container: nginx:alpine serving the Vite build on port 80, proxying `/api/` → `http://backend:8765/` (the `/api` prefix is stripped). SPA fallback routes unmatched paths to `index.html`.
-- **backend** container: python:3.12-slim running uvicorn on 8765 (exposed on the internal compose network only — nginx is the only ingress). Needs `/dev/ttyUSB0` passed in as a device so pyserial can talk to the printer on the host.
+- **backend** container: python:3.12-slim running uvicorn on 8765 (exposed on the internal compose network only — nginx is the only ingress). Runs in **privileged mode** so it sees host devices including `/dev/ttyUSB0` when the USB-to-serial adapter is plugged in — the container starts fine without the adapter, printing just errors until it appears.
 - **Images**: `ghcr.io/mattwillms/sticky-zebra-frontend:latest`, `ghcr.io/mattwillms/sticky-zebra-backend:latest`. Also tagged with `:sha-<commit>` per build.
 - **CI**: `.github/workflows/build-and-push.yml` builds and pushes both images on every push to `main` using a matrix over frontend / backend.
 
@@ -101,12 +101,12 @@ Both apps are containerized and deployed to a Synology NAS.
 | --- | --- | --- | --- |
 | `VITE_API_URL` | frontend (build-time) | `http://localhost:8765` (dev) / `/api` (prod, via `.env.production`) | Base URL for fetch calls; the production build expects nginx to proxy `/api/` to the backend. |
 | `CORS_ORIGINS` | backend | `http://localhost:5173,http://localhost:4173,http://localhost:3000` | Comma-separated list of allowed origins. Set to the public domain (e.g. `https://sticky.example.com`) in prod. |
-| `SERIAL_PORT` | backend | `/dev/ttyUSB0` | Path to the printer's serial device inside the container; the host device is mapped in via compose's `devices:`. |
+| `SERIAL_PORT` | backend | `/dev/ttyUSB0` | Path to the printer's serial device inside the container; visible because the backend runs privileged. |
 
 ### Compose files
 
 - `docker-compose.yml` — local testing. Builds both images from source. Frontend on `localhost:3000`.
-- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, reads `CORS_ORIGINS` from a `.env` file (copy `.env.example` → `.env` and set the real domain), passes `/dev/ttyUSB0` into the backend.
+- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, reads `CORS_ORIGINS` from a `.env` file (copy `.env.example` → `.env` and set the real domain), backend runs privileged for host device access.
 
 ---
 

@@ -109,7 +109,7 @@ docker-compose -f docker-compose.prod.yml up -d
 Notes:
 
 - `/dev/ttyUSB0` must exist on the host (the USB-to-serial adapter must be plugged in and have the right permissions — see *Known limitations*). The backend container maps it straight through.
-- `CORS_ORIGINS` on the backend must be set to the public origin serving the frontend (e.g. `https://sticky.willms.co`). It's a comma-separated list; localhost dev origins are the default when unset.
+- `CORS_ORIGINS` on the backend must be set to the public origin serving the frontend (e.g. `https://sticky.example.com`). It's a comma-separated list; localhost dev origins are the default when unset.
 - `SERIAL_PORT` overrides `/dev/ttyUSB0` inside the backend container if the host exposes the printer at a different path.
 - The frontend build bakes in `VITE_API_URL=/api` (from `frontend/.env.production`), so nginx must proxy `/api/` to the backend — the included `nginx.conf` already does this.
 

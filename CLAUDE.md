@@ -100,13 +100,13 @@ Both apps are containerized and deployed to a Synology NAS.
 | Var | Service | Default | Purpose |
 | --- | --- | --- | --- |
 | `VITE_API_URL` | frontend (build-time) | `http://localhost:8765` (dev) / `/api` (prod, via `.env.production`) | Base URL for fetch calls; the production build expects nginx to proxy `/api/` to the backend. |
-| `CORS_ORIGINS` | backend | `http://localhost:5173,http://localhost:4173,http://localhost:3000` | Comma-separated list of allowed origins. Set to the public domain (e.g. `https://sticky.willms.co`) in prod. |
+| `CORS_ORIGINS` | backend | `http://localhost:5173,http://localhost:4173,http://localhost:3000` | Comma-separated list of allowed origins. Set to the public domain (e.g. `https://sticky.example.com`) in prod. |
 | `SERIAL_PORT` | backend | `/dev/ttyUSB0` | Path to the printer's serial device inside the container; the host device is mapped in via compose's `devices:`. |
 
 ### Compose files
 
 - `docker-compose.yml` — local testing. Builds both images from source. Frontend on `localhost:3000`.
-- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, sets `CORS_ORIGINS=https://sticky.willms.co`, passes `/dev/ttyUSB0` into the backend.
+- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, sets `CORS_ORIGINS=https://sticky.example.com`, passes `/dev/ttyUSB0` into the backend.
 
 ---
 

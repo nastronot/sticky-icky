@@ -220,3 +220,17 @@ Rebranded units require [DCHHV/patch2844](https://github.com/DCHHV/patch2844), a
 **Firmware update won't take.** If you have a carrier-branded unit, stock Zebra firmware updates will be silently discarded. See [LP2844 firmware variants](#lp2844-firmware-variants).
 
 **Feed button doesn't print a configuration label.** This is normal on many rebranded units. Use the EPL2 `U` command shown above instead.
+
+## Shoutouts
+
+https://github.com/AlpenglowIndustries/Stickers
+https://github.com/mtbutler07/xkcd-serial-printer
+https://github.com/DCHHV/patch2844
+https://github.com/BigJk/snd
+https://github.com/MultiMote/niimblue
+https://github.com/eljojo/estrella
+https://github.com/LingDong-/r1b
+https://github.com/nmaggioni/MorningNews
+https://github.com/chr15m/print-weather
+https://github.com/mazoqui/thermy
+https://github.com/HexaCubist/werewolf-receipt

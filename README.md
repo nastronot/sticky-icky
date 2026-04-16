@@ -6,6 +6,8 @@ Browser-based sticker design tool for the Zebra LP2844 thermal label printer.
 
 Design labels in your browser, hit print, and a sticker comes out. Text, images, layers, dithering — everything renders at the printer's native 203 DPI so what you see is what you get.
 
+Yes, the output is crunchy. Yes, the dithering is loud. Yes, photos look like they were faxed in 1994. That's the point — 1-bit, 203 DPI, direct thermal. Lean into it.
+
 ## Features
 
 ### Layers

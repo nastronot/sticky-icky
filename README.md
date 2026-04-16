@@ -2,7 +2,9 @@
 
 ![Sticky Zebra](docs/hero.webp)
 
-Browser-based sticker design tool for the Zebra LP2844 thermal label printer.
+Turn electronic eBay waste into art.
+
+Sticky Zebra is a browser-based sticker design tool for the Zebra LP2844 thermal printer — the kind you can grab on eBay for $40.
 
 Design labels in your browser, hit print, and a sticker comes out. Text, images, layers, dithering — everything renders at the printer's native 203 DPI so what you see is what you get.
 

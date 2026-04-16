@@ -85,6 +85,34 @@ npm run dev
 # 7. Open http://localhost:5173
 ```
 
+## Docker deployment
+
+Both apps ship as Docker images. The frontend is an nginx-served Vite build that proxies `/api/` to the backend; the backend is a uvicorn container that needs the host's serial device passed in.
+
+### Local
+
+```bash
+docker-compose up --build
+# frontend: http://localhost:3000  →  backend via /api/
+```
+
+### Production (Synology NAS or any Docker host)
+
+Images are built by GitHub Actions and pushed to GHCR as `ghcr.io/mattwillms/sticky-zebra-frontend:latest` and `:sticky-zebra-backend:latest`. On the host:
+
+```bash
+# Copy docker-compose.prod.yml to the host, then:
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+Notes:
+
+- `/dev/ttyUSB0` must exist on the host (the USB-to-serial adapter must be plugged in and have the right permissions — see *Known limitations*). The backend container maps it straight through.
+- `CORS_ORIGINS` on the backend must be set to the public origin serving the frontend (e.g. `https://sticky.willms.co`). It's a comma-separated list; localhost dev origins are the default when unset.
+- `SERIAL_PORT` overrides `/dev/ttyUSB0` inside the backend container if the host exposes the printer at a different path.
+- The frontend build bakes in `VITE_API_URL=/api` (from `frontend/.env.production`), so nginx must proxy `/api/` to the backend — the included `nginx.conf` already does this.
+
 ## Architecture
 
 ```

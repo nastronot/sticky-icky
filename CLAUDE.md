@@ -84,6 +84,32 @@ GW expects `0 = black, 1 = white`. The frontend packs `1 = black, 0 = white` so 
 
 ---
 
+## Deployment
+
+Both apps are containerized and deployed to a Synology NAS.
+
+### Architecture
+
+- **frontend** container: nginx:alpine serving the Vite build on port 80, proxying `/api/` → `http://backend:8765/` (the `/api` prefix is stripped). SPA fallback routes unmatched paths to `index.html`.
+- **backend** container: python:3.12-slim running uvicorn on 8765 (exposed on the internal compose network only — nginx is the only ingress). Needs `/dev/ttyUSB0` passed in as a device so pyserial can talk to the printer on the host.
+- **Images**: `ghcr.io/mattwillms/sticky-zebra-frontend:latest`, `ghcr.io/mattwillms/sticky-zebra-backend:latest`. Also tagged with `:sha-<commit>` per build.
+- **CI**: `.github/workflows/build-and-push.yml` builds and pushes both images on every push to `main` using a matrix over frontend / backend.
+
+### Env vars
+
+| Var | Service | Default | Purpose |
+| --- | --- | --- | --- |
+| `VITE_API_URL` | frontend (build-time) | `http://localhost:8765` (dev) / `/api` (prod, via `.env.production`) | Base URL for fetch calls; the production build expects nginx to proxy `/api/` to the backend. |
+| `CORS_ORIGINS` | backend | `http://localhost:5173,http://localhost:4173,http://localhost:3000` | Comma-separated list of allowed origins. Set to the public domain (e.g. `https://sticky.willms.co`) in prod. |
+| `SERIAL_PORT` | backend | `/dev/ttyUSB0` | Path to the printer's serial device inside the container; the host device is mapped in via compose's `devices:`. |
+
+### Compose files
+
+- `docker-compose.yml` — local testing. Builds both images from source. Frontend on `localhost:3000`.
+- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, sets `CORS_ORIGINS=https://sticky.willms.co`, passes `/dev/ttyUSB0` into the backend.
+
+---
+
 ## Frontend feature surface (current)
 
 - **Layer types**: Big Text (auto-fit to label), free Text (positioned, sized via fontSize), Image (import + dither + drag/scale/rotate/flip + crop), Fill (solid black rectangle).
@@ -134,6 +160,17 @@ npm run dev      # vite dev server on http://localhost:5173
 npm run build    # production build → dist/
 npm run lint     # eslint
 npm run test     # vitest
+```
+
+### Docker
+
+```bash
+# Local: build + run both containers
+docker-compose up --build
+
+# Production (on the Synology NAS): pull prebuilt images from GHCR
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ### Manual print test (raw EPL2 over serial)

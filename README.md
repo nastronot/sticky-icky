@@ -1,5 +1,7 @@
 # Sticky Zebra
 
+![Sticky Zebra](docs/hero.webp)
+
 Browser-based sticker design tool for the Zebra LP2844 thermal label printer.
 
 Design labels in your browser, hit print, and a sticker comes out. Text, images, layers, dithering — everything renders at the printer's native 203 DPI so what you see is what you get.

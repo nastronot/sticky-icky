@@ -4,6 +4,29 @@ Browser-based sticker design tool for the Zebra LP2844 thermal label printer.
 
 Design labels in your browser, hit print, and a sticker comes out. Text, images, layers, dithering — everything renders at the printer's native 203 DPI so what you see is what you get.
 
+## Why this exists
+
+The Zebra LP2844 is a solid 203 DPI direct thermal label printer. Certain firmware versions, including V4.29 on the unit this was developed against, have a quietly broken `GW` (Direct Graphic Write) command over USB — payloads are accepted without error but produce blank labels.
+
+Sticky Zebra is the result of working around that.
+
+The project started as a browser-based sticker design tool — multi-layer canvas editing, dithering, XOR compositing, typography — targeting the printer's native 832-dot print width. Getting pixels to the printer required working through the transport problem:
+
+- **CUPS raw queue** works but adds pointless indirection for raw EPL2 output.
+- **Direct USB with `GW`** silently produces blank labels on V4.29.
+- **Direct USB with `LO` (Line Draw)** works for sparse content but can't handle dense raster data without overwhelming the command buffer.
+- **Serial with `GW`** works reliably. Same command, different transport.
+
+The current architecture writes EPL2 over a USB-to-serial adapter to the printer's DB-9 port at 38400 baud. The frontend renders at native printer resolution; the backend is a thin FastAPI wrapper that packages the bitmap into an EPL2 `GW` payload and writes it to `/dev/ttyUSB0`.
+
+## A note on firmware
+
+LP2844 units come in two broad flavors: retail Zebra-branded and carrier-branded (UPS, FedEx, etc.). The carrier units ship with modified firmware that's deliberately locked down for the carrier's shipping software, and Zebra's firmware updater silently refuses to flash stock firmware onto them — the update is accepted, acknowledged, and then discarded. Projects like [DCHHV/patch2844](https://github.com/DCHHV/patch2844) exist to work around this, but the process involves dumping both flash ICs in-circuit and reconstructing a patched update file.
+
+Retail Zebra units can usually be updated to the latest stock firmware (V4.70.1A) via Zebra's Z-Downloader tool, which in principle would fix the `GW`-over-USB issue and make this project's serial workaround unnecessary on those units.
+
+The unit this project targets is a retail Zebra running V4.29. An update to V4.70.1A is plausibly possible and might restore USB functionality. It wasn't attempted. The serial path works, it works the same on any LP2844 regardless of firmware version or carrier branding, and there's no failure mode where a mid-flash interruption bricks the printer. That tradeoff — portability and reliability over a potentially cleaner architecture — is why this project lives on serial and stays there.
+
 ## What you need
 
 ### Printer
@@ -22,7 +45,7 @@ A **USB-to-serial adapter** (FTDI or similar) connected to the LP2844's DB-9 ser
 
 ### Server
 
-Any Docker host with a USB port for the serial adapter. We run it on a Synology NAS.
+Any Docker host with a USB port for the serial adapter.
 
 ## Features
 

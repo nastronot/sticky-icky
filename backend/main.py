@@ -1,13 +1,26 @@
 import base64
 import os
+import re
 import time
 
 import serial
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+
 
 _default_origins = "http://localhost:5173,http://localhost:4173,http://localhost:3000"
 _cors_origins = [
@@ -23,16 +36,14 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-SERIAL_PORT = os.environ.get("SERIAL_PORT", "/dev/ttyUSB0")
+_serial_port = os.environ.get("SERIAL_PORT", "/dev/ttyUSB0")
+if not re.match(r"^/dev/tty[A-Za-z0-9_]+$", _serial_port):
+    raise ValueError(f"Invalid SERIAL_PORT: {_serial_port}")
+SERIAL_PORT = _serial_port
 BAUD_RATE = 38400
 
-
-# Hard caps that protect against allocation-based DoS while staying well
-# above any legitimate label the LP2844 can print (832 dots wide, ~2400
-# dots long maximum). The base64 budget covers a worst-case 4096 × 4096
-# 1bpp bitmap (~2.1 MB raw → ~2.8 MB base64) with headroom.
 MAX_DOTS = 4096
-MAX_BITMAP_BASE64 = 4 * 1024 * 1024  # 4 MB
+MAX_BITMAP_BASE64 = 1024 * 1024  # 1 MB
 
 
 class PrintRequest(BaseModel):
@@ -52,7 +63,8 @@ async def health():
 
 
 @app.post("/print")
-async def print_label(req: PrintRequest):
+@limiter.limit("10/minute")
+async def print_label(request: Request, req: PrintRequest):
     if req.width % 8 != 0:
         raise HTTPException(
             status_code=400,

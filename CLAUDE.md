@@ -7,7 +7,7 @@ Sticky Zebra — browser-based design tool for the Zebra LP2844 thermal printer.
 - `~/dev/thermal/frontend/` — React + Vite app. Multi-layer canvas editor (Big Text, free Text, Image, Solid Fill), per-layer dithering and invert, XOR compositing, save/load gallery backed by IndexedDB.
 - `~/dev/thermal/backend/` — Minimal FastAPI server. Single `POST /print` endpoint that converts a base64 1bpp bitmap into an EPL2 GW payload and writes it to the printer over serial.
 
-`spec.md` exists at the repo root but is the original v1 brief and is now mostly outdated. Use this file as the source of truth for current state.
+`docs/spec.md` is the original v1 brief and is now mostly outdated. Use this file as the source of truth for current state.
 
 ---
 

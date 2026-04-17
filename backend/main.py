@@ -4,7 +4,7 @@ import re
 import time
 
 import serial
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -66,7 +66,15 @@ async def health():
 
 @app.post("/print")
 @limiter.limit("10/minute")
-async def print_label(request: Request, req: PrintRequest):
+async def print_label(
+    request: Request,
+    req: PrintRequest,
+    raw_gw_x: int | None = Query(
+        default=None,
+        description="TEMPORARY: override GW p1 value for unit testing. "
+                    "Bypasses xOffset conversion. Remove after testing.",
+    ),
+):
     if req.width % 8 != 0:
         raise HTTPException(
             status_code=400,
@@ -86,7 +94,9 @@ async def print_label(request: Request, req: PrintRequest):
             detail=f"Bitmap size mismatch: got {len(bitmap_bytes)}, expected {expected_size}",
         )
 
-    # xOffset arrives in dots; GW p1 is in bytes. Convert and validate.
+    # xOffset arrives in dots; GW p1 unit is under investigation (manual
+    # says dots, production code assumed bytes). Convert for now, but allow
+    # raw_gw_x query param to override for empirical testing.
     x_offset_bytes = req.xOffset // 8
     if req.xOffset % 8 != 0:
         raise HTTPException(
@@ -94,17 +104,24 @@ async def print_label(request: Request, req: PrintRequest):
             detail=f"xOffset must be a multiple of 8 (got {req.xOffset})",
         )
 
+    # TEMPORARY: allow raw override of GW p1 for unit testing.
+    # Usage: POST /print?raw_gw_x=10  or  POST /print?raw_gw_x=80
+    gw_x = raw_gw_x if raw_gw_x is not None else x_offset_bytes
+
     # GW expects 0=black, 1=white. Frontend packs 1=black, 0=white. Invert.
     inverted = bytes(b ^ 0xFF for b in bitmap_bytes)
 
+    # EPL2 manual p. 120: "All printer configuration commands should be
+    # issued prior to issuing the N command." D and S are Stored config
+    # commands (p. 38) so they must precede N.
     header = (
         "\r\n"
+        f"D{req.darkness}\r\n"
+        f"S{req.speed}\r\n"
         "N\r\n"
         f"q{req.width}\r\n"
         f"Q{req.labelH},21\r\n"
-        f"D{req.darkness}\r\n"
-        f"S{req.speed}\r\n"
-        f"GW{x_offset_bytes},{req.yOffset},{width_bytes},{req.height}\r\n"
+        f"GW{gw_x},{req.yOffset},{width_bytes},{req.height}\r\n"
     ).encode("ascii")
     footer = f"P{req.copies}\r\n".encode("ascii")
     payload_bytes = header + inverted + footer

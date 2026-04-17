@@ -396,7 +396,14 @@ export default function App() {
     );
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8765';
-      const res = await fetch(`${apiBase}/print`, {
+      // TEMPORARY: forward ?raw_gw_x= from the page URL to the backend
+      // for empirical GW p1 unit testing. Remove after testing.
+      const pageParams = new URLSearchParams(window.location.search);
+      const rawGwX = pageParams.get('raw_gw_x');
+      const printUrl = rawGwX != null
+        ? `${apiBase}/print?raw_gw_x=${encodeURIComponent(rawGwX)}`
+        : `${apiBase}/print`;
+      const res = await fetch(printUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

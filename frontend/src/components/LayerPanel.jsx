@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
   RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
-  Maximize2, Minimize2, Ruler, Square, Pencil,
+  Maximize2, Minimize2, Settings2, Square, Pencil,
 } from 'lucide-react';
 
 /** Right-sidebar layer list and global controls. The top section hosts the
@@ -33,7 +33,7 @@ export default function LayerPanel({
   onToggleViewportRotation,
   trueSize,
   onToggleTrueSize,
-  onRecalibrate,
+  onOpenSettings,
   onNew,
   onSave,
   saveStatus,
@@ -237,11 +237,11 @@ export default function LayerPanel({
             </button>
             <button
               type="button"
-              onClick={onRecalibrate}
-              title="Calibrate screen size"
-              aria-label="Calibrate screen size"
+              onClick={onOpenSettings}
+              title="Settings"
+              aria-label="Settings"
             >
-              <Ruler size={16} />
+              <Settings2 size={16} />
             </button>
           </div>
         </div>

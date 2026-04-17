@@ -55,7 +55,7 @@ class PrintRequest(BaseModel):
     darkness: int = Field(default=12, ge=0, le=15)  # EPL2 D command (0–15)
     speed: int = Field(default=1, ge=1, le=4)       # EPL2 S command (1–4)
     copies: int = Field(default=1, ge=1, le=99)     # EPL2 P command (1–99)
-    xOffset: int = Field(default=8, ge=0, le=MAX_DOTS)   # GW X offset in bytes
+    xOffset: int = Field(default=80, ge=0, le=MAX_DOTS)   # GW X offset in dots (converted to bytes internally)
     yOffset: int = Field(default=0, ge=0, le=MAX_DOTS)   # GW Y offset in dots
 
 
@@ -86,6 +86,14 @@ async def print_label(request: Request, req: PrintRequest):
             detail=f"Bitmap size mismatch: got {len(bitmap_bytes)}, expected {expected_size}",
         )
 
+    # xOffset arrives in dots; GW p1 is in bytes. Convert and validate.
+    x_offset_bytes = req.xOffset // 8
+    if req.xOffset % 8 != 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"xOffset must be a multiple of 8 (got {req.xOffset})",
+        )
+
     # GW expects 0=black, 1=white. Frontend packs 1=black, 0=white. Invert.
     inverted = bytes(b ^ 0xFF for b in bitmap_bytes)
 
@@ -96,7 +104,7 @@ async def print_label(request: Request, req: PrintRequest):
         f"Q{req.labelH},21\r\n"
         f"D{req.darkness}\r\n"
         f"S{req.speed}\r\n"
-        f"GW{req.xOffset},{req.yOffset},{width_bytes},{req.height}\r\n"
+        f"GW{x_offset_bytes},{req.yOffset},{width_bytes},{req.height}\r\n"
     ).encode("ascii")
     footer = f"P{req.copies}\r\n".encode("ascii")
     payload_bytes = header + inverted + footer

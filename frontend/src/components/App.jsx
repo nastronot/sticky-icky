@@ -9,7 +9,6 @@ import {
   savePresets,
   buildDropdownList,
   makePreset,
-  CUSTOM_PRESET,
 } from '../utils/presets.js';
 import { ImagePlus } from 'lucide-react';
 import { measureTextLayer } from '../utils/renderText.js';
@@ -24,9 +23,11 @@ import {
   autoSave,
   loadAutoSave,
   clearAutoSave,
+  loadSetting,
+  saveSetting,
 } from '../utils/storage.js';
 import Gallery from './Gallery.jsx';
-import Calibration from './Calibration.jsx';
+import Settings from './Settings.jsx';
 import { loadScreenDPI, saveScreenDPI } from '../utils/calibration.js';
 import './studio.css';
 
@@ -190,9 +191,15 @@ export default function App() {
   const [trueSize, setTrueSize] = useState(false);
   const [cropMode, setCropMode] = useState(null); // null | { layerId, rect: { x, y, w, h } } in image-pixel space
   const [screenDPI, setScreenDPI] = useState(null);
-  const [calibrationOpen, setCalibrationOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [presets, setPresets] = useState([]);
   const [presetEditorOpen, setPresetEditorOpen] = useState(false);
+
+  // ── Global print settings (persisted to IndexedDB settings store) ────────
+  const [darkness, setDarkness] = useState(15);
+  const [speed, setSpeed] = useState(1);
+  const [xOffset, setXOffset] = useState(80);  // dots (= 10 bytes, the known-good default)
+  const [yOffset, setYOffset] = useState(0);    // dots
   const dropdownPresets = useMemo(() => buildDropdownList(presets), [presets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
@@ -208,12 +215,6 @@ export default function App() {
   const preset = dropdownPresets[safePresetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
-
-  // Per-stock print settings — pulled from the active stock (preset or Custom).
-  const stockDarkness = preset.darkness ?? 15;
-  const stockSpeed = preset.speed ?? 1;
-  const stockXOffset = preset.xOffset ?? 8;
-  const stockYOffset = preset.yOffset ?? 0;
 
   const selectedLayer = layers.find(l => l.id === selectedLayerId) ?? null;
   const visibleCanvasRef = useRef(null);
@@ -391,7 +392,7 @@ export default function App() {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const body = encodePrintPayload(
       imageData.data, canvas.width, canvas.height, labelW, labelH,
-      stockDarkness, stockSpeed, copies, stockXOffset, stockYOffset,
+      darkness, speed, copies, xOffset, yOffset,
     );
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8765';
@@ -409,7 +410,7 @@ export default function App() {
     } catch (err) {
       setPrintStatus({ error: err.message });
     }
-  }, [labelW, labelH, copies, stockDarkness, stockSpeed, stockXOffset, stockYOffset]);
+  }, [labelW, labelH, copies, darkness, speed, xOffset, yOffset]);
 
   const handlePresetIdxChange = useCallback((i) => {
     setPresetIdx(i);
@@ -417,10 +418,10 @@ export default function App() {
   }, []);
 
   // True-size toggle: if there's no calibrated DPI yet, the first activation
-  // routes through the calibration modal. Subsequent toggles flip directly.
+  // routes through the settings modal's Display tab. Subsequent toggles flip directly.
   const handleToggleTrueSize = useCallback(() => {
     if (!trueSize && screenDPI === null) {
-      setCalibrationOpen(true);
+      setSettingsOpen(true);
       return;
     }
     setTrueSize(t => !t);
@@ -429,12 +430,28 @@ export default function App() {
   const handleCalibrationDone = useCallback((dpi) => {
     saveScreenDPI(dpi);
     setScreenDPI(dpi);
-    setCalibrationOpen(false);
-    setTrueSize(true);
+    if (!trueSize) setTrueSize(true);
+  }, [trueSize]);
+
+  // ── Global print settings persistence ────────────────────────────────────
+  const handleDarknessChange = useCallback((v) => {
+    setDarkness(v);
+    saveSetting('darkness', v).catch(err => console.warn('Failed to save darkness:', err));
   }, []);
 
-  const handleCalibrationCancel = useCallback(() => {
-    setCalibrationOpen(false);
+  const handleSpeedChange = useCallback((v) => {
+    setSpeed(v);
+    saveSetting('speed', v).catch(err => console.warn('Failed to save speed:', err));
+  }, []);
+
+  const handleXOffsetChange = useCallback((v) => {
+    setXOffset(v);
+    saveSetting('xOffset', v).catch(err => console.warn('Failed to save xOffset:', err));
+  }, []);
+
+  const handleYOffsetChange = useCallback((v) => {
+    setYOffset(v);
+    saveSetting('yOffset', v).catch(err => console.warn('Failed to save yOffset:', err));
   }, []);
 
   // ── Label-size presets ────────────────────────────────────────────────────
@@ -466,12 +483,6 @@ export default function App() {
       if (newIdx >= 0 && newIdx !== presetIdx) setPresetIdx(newIdx);
     }
   }, [presets, presetIdx]);
-
-  const handleUpdatePreset = useCallback((id, patch) => {
-    const updated = presets.map(p => (p.id === id ? { ...p, ...patch } : p));
-    setPresets(updated);
-    savePresets(updated).catch(err => console.warn('Failed to save presets:', err));
-  }, [presets]);
 
   // Refresh the gallery's design list from IndexedDB. Called whenever the
   // gallery opens, after a save, and after a delete / favorite toggle.
@@ -691,9 +702,19 @@ export default function App() {
       } catch (err) {
         console.warn('Failed to load screen DPI:', err);
       }
+      // Load global print settings from IndexedDB.
+      const loadedDarkness = await loadSetting('darkness');
+      const loadedSpeed = await loadSetting('speed');
+      const loadedXOffset = await loadSetting('xOffset');
+      const loadedYOffset = await loadSetting('yOffset');
+
       if (cancelled) return;
       setPresets(loadedPresets);
       if (loadedDPI !== null) setScreenDPI(loadedDPI);
+      if (loadedDarkness !== null) setDarkness(loadedDarkness);
+      if (loadedSpeed !== null) setSpeed(loadedSpeed);
+      if (loadedXOffset !== null) setXOffset(loadedXOffset);
+      if (loadedYOffset !== null) setYOffset(loadedYOffset);
 
       // Build dropdown from loaded presets for deserializeDesign.
       const ddPresets = buildDropdownList(loadedPresets);
@@ -1003,7 +1024,7 @@ export default function App() {
         onToggleViewportRotation={() => setViewportRotation(r => (r === 0 ? 90 : 0))}
         trueSize={trueSize}
         onToggleTrueSize={handleToggleTrueSize}
-        onRecalibrate={() => setCalibrationOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         onNew={handleNewDesign}
         onSave={handleSave}
         saveStatus={saveStatus}
@@ -1032,11 +1053,19 @@ export default function App() {
         </div>
       </div>
 
-      {calibrationOpen && (
-        <Calibration
-          initialDPI={screenDPI}
-          onDone={handleCalibrationDone}
-          onCancel={handleCalibrationCancel}
+      {settingsOpen && (
+        <Settings
+          darkness={darkness}
+          speed={speed}
+          xOffset={xOffset}
+          yOffset={yOffset}
+          screenDPI={screenDPI}
+          onChangeDarkness={handleDarknessChange}
+          onChangeSpeed={handleSpeedChange}
+          onChangeXOffset={handleXOffsetChange}
+          onChangeYOffset={handleYOffsetChange}
+          onCalibrationDone={handleCalibrationDone}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 
@@ -1046,7 +1075,6 @@ export default function App() {
           onAdd={handleAddPreset}
           onDelete={handleDeletePreset}
           onToggleFavorite={handleToggleFavoritePreset}
-          onUpdate={handleUpdatePreset}
           onClose={() => setPresetEditorOpen(false)}
         />
       )}

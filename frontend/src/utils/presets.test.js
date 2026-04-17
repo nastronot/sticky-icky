@@ -50,27 +50,23 @@ describe('makePreset', () => {
     expect(p.label).toBe('My Label');
   });
 
-  it('includes stock defaults', () => {
+  it('has only dimension fields (no per-stock settings)', () => {
     const p = makePreset('test', 2, 1);
-    expect(p.darkness).toBe(15);
-    expect(p.speed).toBe(1);
-    expect(p.xOffset).toBe(8);
-    expect(p.yOffset).toBe(0);
-    expect(p.calibrated).toBe(false);
-    expect(p.calibratedAt).toBeNull();
+    expect(p.darkness).toBeUndefined();
+    expect(p.speed).toBeUndefined();
+    expect(p.xOffset).toBeUndefined();
+    expect(p.yOffset).toBeUndefined();
+    expect(p.calibrated).toBeUndefined();
   });
 });
 
 describe('CUSTOM_PRESET', () => {
-  it('has null dimensions and stock defaults', () => {
+  it('has null dimensions and no stock fields', () => {
     expect(CUSTOM_PRESET.id).toBe('custom');
     expect(CUSTOM_PRESET.w).toBeNull();
     expect(CUSTOM_PRESET.h).toBeNull();
-    expect(CUSTOM_PRESET.darkness).toBe(15);
-    expect(CUSTOM_PRESET.speed).toBe(1);
-    expect(CUSTOM_PRESET.xOffset).toBe(8);
-    expect(CUSTOM_PRESET.yOffset).toBe(0);
-    expect(CUSTOM_PRESET.calibrated).toBe(false);
+    expect(CUSTOM_PRESET.custom).toBe(true);
+    expect(CUSTOM_PRESET.darkness).toBeUndefined();
   });
 });
 

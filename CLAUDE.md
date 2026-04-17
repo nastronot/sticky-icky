@@ -73,15 +73,15 @@ q{width}\r\n                               — label width in dots (= padded bit
 Q{labelH},21\r\n                           — label height in dots + 21-dot inter-label gap
 D{darkness}\r\n                            — print darkness (0–15)
 S{speed}\r\n                               — print speed (1–4)
-GW{xOffset},{yOffset},{width_bytes},{height}\r\n  — Direct Graphic Write at (xOffset, yOffset)
+GW{xOffset//8},{yOffset},{width_bytes},{height}\r\n  — Direct Graphic Write
 {raw inverted bitmap bytes}                — width_bytes × height bytes, NO separator
 P{copies}\r\n                              — print N copies
 ```
 
 Notes:
 - The `q` command receives the *padded* bitmap width, not the user-facing label width — the printer expects q to match the byte count GW will stream.
-- `GW{xOffset},{yOffset}` positions the bitmap on the label. xOffset is in bytes (multiply by 8 for dots). These values come from the active label stock's per-stock settings (default xOffset=8, yOffset=0). The user can override per-stock in the PresetEditor.
-- Darkness and speed come from the active label stock (default D15 S1). The frontend no longer hardcodes these — they're per-stock settings editable in the PresetEditor.
+- `GW` X/Y offset: the API accepts `xOffset` and `yOffset` in **dots** (both fields). The backend converts xOffset from dots to bytes (`xOffset // 8`) for the GW command's p1 parameter. xOffset must be a multiple of 8. Default is 80 dots (= 10 bytes), which is the empirically calibrated value for the current label stock + guides.
+- Darkness and speed are **global settings** (not per-preset). Default D15 S1. Editable in the Settings modal (gear icon in the View button group).
 - **yOffset caveat**: the current rendering pipeline always sizes the bitmap to exactly `labelH` dots tall, so yOffset has no visible effect unless the pipeline changes to produce shorter bitmaps. The field is kept for future calibration use.
 
 ### GW bit polarity
@@ -138,8 +138,10 @@ Both apps are containerized and deployed to a Synology NAS.
 - **Undo / redo**: 20-entry history with the same 350 ms burst coalescing. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y.
 - **Keyboard shortcuts**: arrow nudge (1 px / 10 px with shift), Delete to remove layer, Escape to deselect, Ctrl+D to duplicate, Ctrl+V to paste image from clipboard.
 - **Drag-and-drop image files** anywhere in the studio.
-- **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; one-time ruler-based calibration modal stored in IndexedDB settings store).
-- **Label stocks (presets)**: stored in IndexedDB (`sticky_zebra.presets`). Each stock carries dimensions plus per-stock print settings: `{ id, label, w, h, favorite, darkness, speed, xOffset, yOffset, calibrated, calibratedAt }`. User-managed list (add, delete, favorite, edit print settings). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly. The PresetEditor modal has expandable per-stock settings for darkness, speed, xOffset, yOffset.
+- **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; calibration via Settings modal).
+- **Label-size presets**: stored in IndexedDB (`sticky_zebra.presets`). Shape: `{ id, label, w, h, favorite }`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
+- **Global settings**: darkness, speed, xOffset, yOffset, screenDPI — stored in IndexedDB `settings` store. Edited via the Settings modal (gear icon in the View button group). These are global, not per-preset.
+- **Settings modal**: tabbed (Print / Display). Print tab: darkness slider, speed slider, X/Y offset inputs in dots. Display tab: screen DPI calibration with ruler drag UI.
 - **Fonts**: Google Fonts collection (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
 
 ---
@@ -205,10 +207,12 @@ sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill 
 
 - **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (it produces blank labels). Serial is the *only* working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code; the LO-command fallback is gone.
 - **Baud rate is 38400** — the maximum reliable speed for this printer. 57600+ produces dropped bytes and partial labels. 9600 also works but is unnecessarily slow for full-page bitmaps.
-- **GW offset is per-stock**: `GW{xOffset},{yOffset}` — xOffset and yOffset are stored per label stock (default xOffset=8, yOffset=0). The previous hardcoded `GW10,0` was replaced by per-stock values. xOffset is in bytes (× 8 for dots).
+- **GW offset is global**: `GW{xOffset//8},{yOffset}` — the API and UI use dots for both offsets. The backend converts xOffset from dots to bytes (`// 8`) for the GW command. Default xOffset=80 dots (= 10 bytes), yOffset=0. xOffset must be a multiple of 8 dots. These are global settings edited in the Settings modal, not per-preset.
+- **GW offset units fixed**: Phase 1 stored xOffset in bytes (default 8) and passed it directly to GW. This was confusing (mixed units) and the default was wrong (8 bytes instead of the known-good 10 bytes = 80 dots). Now everything is in dots, the backend converts at the last moment, and the default matches the original hardcoded `GW10,0`.
 - **`q` matches the bitmap width**, not `labelW`. The bitmap width is padded to the next multiple of 8 by the frontend; the `q` command must match what `GW` actually streams.
-- **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. Default per-stock settings are `D15 S1` which is reliable for the dense raster art this app produces. These are now editable per label stock in the PresetEditor.
+- **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. Default global settings are `D15 S1` which is reliable for the dense raster art this app produces. Editable in the Settings modal.
 - **yOffset is inert given current pipeline**: the bitmap is always sized to exactly `labelH` dots, so yOffset has no effect. The field exists for future calibration features that may produce shorter bitmaps.
+- **Per-stock settings were reverted**: Phase 1 added per-preset D/S/offset fields. These were removed — print settings are global. On load, any obsolete per-stock fields (`darkness`, `speed`, `xOffset`, `yOffset`, `calibrated`, `calibratedAt`) are silently stripped from presets in IndexedDB.
 - **245 KB image buffer** is the hard ceiling for a single print. An 832×2400 1-bit bitmap is ~249 KB and will fail. Test large prints early.
 - **`/dev/ttyUSB0` permissions**: the user needs to be in the `dialout` (or `uucp`) group, e.g. `sudo usermod -aG dialout matt`. **The permission resets every time the USB-to-serial adapter is reconnected**, so an `udev` rule or `chmod 666 /dev/ttyUSB0` is the easy workaround for dev.
 - **GW data follows immediately**: the binary bitmap follows the `GW` command line right after its `\r\n` with no separator. Any extra bytes between the command and the data desync the printer.

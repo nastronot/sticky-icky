@@ -5,6 +5,7 @@ import {
   FlipHorizontal2, FlipVertical2,
   CaseUpper, AArrowDown,
 } from 'lucide-react';
+import PatternPicker from './PatternPicker.jsx';
 
 const FONTS = [
   'Arial Black',
@@ -212,6 +213,11 @@ export default function TextControls({ layer, onChange, focusTextNonce }) {
           ><FlipVertical2 size={16} /></button>
         </div>
       </div>
+
+      <PatternPicker
+        value={layer.fillPattern}
+        onChange={v => set({ fillPattern: v })}
+      />
 
       <div className="control-group">
         <span>Invert</span>

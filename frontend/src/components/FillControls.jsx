@@ -1,3 +1,5 @@
+import PatternPicker from './PatternPicker.jsx';
+
 const DITHER_ALGOS = [
   { id: 'none',           label: 'None' },
   { id: 'bayer4',         label: 'Ordered (Bayer 4×4)' },
@@ -65,6 +67,11 @@ export default function FillControls({ layer, onChange }) {
           onChange={e => set({ rotation: Number(e.target.value) })}
         />
       </label>
+
+      <PatternPicker
+        value={layer.fillPattern}
+        onChange={v => set({ fillPattern: v })}
+      />
 
       <div className="control-group">
         <span>Invert</span>

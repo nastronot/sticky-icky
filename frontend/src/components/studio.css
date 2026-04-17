@@ -1326,3 +1326,38 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+/* Pattern picker ============================================================ */
+
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.pattern-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 2px;
+  background: var(--bg-control);
+  border: 2px solid var(--border-faint);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pattern-swatch:hover {
+  border-color: var(--border);
+}
+
+.pattern-swatch.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.pattern-swatch canvas {
+  display: block;
+  border-radius: 2px;
+}

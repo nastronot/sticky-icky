@@ -129,8 +129,9 @@ Both apps are containerized and deployed to a Synology NAS.
 
 ## Frontend feature surface (current)
 
-- **Layer types**: Big Text (auto-fit to label), free Text (positioned, sized via fontSize), Image (import + dither + drag/scale/rotate/flip + crop), Fill (solid black rectangle).
-- **Per-layer**: position (x, y), size (width, height), rotation, flip H/V, invert, XOR composite toggle (off → overwrite), dithering (none / Bayer 4×4 / Bayer 8×8 / Floyd-Steinberg / Atkinson) with amount slider.
+- **Layer types**: Big Text (auto-fit to label), free Text (positioned, sized via fontSize), Image (import + dither + drag/scale/rotate/flip + crop), Fill (pattern-filled rectangle).
+- **Per-layer**: position (x, y), size (width, height), rotation, flip H/V, fill pattern (Text/BigText/Fill only, 12 built-in 1-bit patterns), invert, XOR composite toggle (off → overwrite), dithering (none / Bayer 4×4 / Bayer 8×8 / Floyd-Steinberg / Atkinson) with amount slider.
+- **Fill patterns**: 12 built-in tileable 1-bit patterns defined in `src/utils/patterns.js`: solid, gray-fine (25%), gray-mid (50% checker), gray-coarse (12.5%), horizontal-lines, vertical-lines, diagonal-lines, grid, cross, brick, waves, diamonds. Default is "solid" (acts as no-pattern). Pattern picker UI is a 4×3 swatch grid in the layer controls sidebar. Patterns render at 1:1 pixel resolution — no anti-aliasing. For text layers, the pattern fills inside the glyph shapes (masked via canvas compositing). Image layers do not support fill patterns.
 - **Canvas interaction**: drag, 8 resize handles (corners + edges), rotation handle, shift inverts the layer's `lockAspect` for the drag, shift snaps rotation to 45°. Pointer math handles viewport rotation.
 - **Compositing**: XOR (default) — overlapping black flips to white. Per-layer toggle for solid overwrite mode.
 - **Image crop**: per-image crop mode with draggable green crop rectangle, Apply replaces the layer's `originalImage` with the cropped slice.

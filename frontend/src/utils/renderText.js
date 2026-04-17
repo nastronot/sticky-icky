@@ -1,5 +1,6 @@
 import { applyFont, drawLine, measureLine } from './textFitting.js';
 import { applyDither } from './dither.js';
+import { createCanvasPattern } from './patterns.js';
 
 // Off-DOM canvas reused for synchronous text measurement (used by App when
 // constructing a layer and by anything else that needs dimensions before the
@@ -81,49 +82,8 @@ export function measureTextLayer(layer) {
   };
 }
 
-/**
- * Render a free text layer onto its (already-sized) offscreen canvas. The
- * canvas is cleared, the text is drawn at `layer.x, layer.y` (top-left of
- * the bounding box) with rotation around the layer center, and the per-layer
- * dither (if any) is applied. Returns the measured dimensions so the caller
- * can correct stale `layer.width/height` if the font has loaded since the
- * last patch.
- */
-export async function renderTextLayer(canvas, layer) {
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Wait for the font so glyph metrics are accurate.
-  await document.fonts.load(fontSpec(layer));
-
-  const m = measureTextLayer(layer);
-  if (!layer.text) return { width: m.width, height: m.height };
-
-  applyFont(ctx, layer.fontSize, layer.font, layer.bold, layer.italic);
-  ctx.textBaseline = 'alphabetic';
-
-  // Centered transform around the layer's center; we draw lines centered on
-  // (0, 0) so flipH / flipV mirror about the bounding-box center.
-  const cx = layer.x + m.width / 2;
-  const cy = layer.y + m.height / 2;
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate((layer.rotation * Math.PI) / 180);
-  ctx.scale(layer.flipH ? -1 : 1, layer.flipV ? -1 : 1);
-
-  // Invert mode: paint a black rectangle the size of the bounding box (in
-  // local space, so it inherits the layer's rotation/flip) before drawing
-  // text in white. The rectangle is the per-text-layer "background" — only
-  // covers the layer's footprint, unlike Big Text which fills the canvas.
-  if (layer.invert) {
-    ctx.fillStyle = 'black';
-    ctx.fillRect(-m.width / 2, -m.height / 2, m.width, m.height);
-    ctx.fillStyle = 'white';
-  } else {
-    ctx.fillStyle = 'black';
-  }
-
+/** Draw the text glyphs onto ctx in its current transform. */
+function drawGlyphs(ctx, m, layer) {
   const startY = -m.height / 2;
   const hAlign = layer.hAlign ?? 'left';
   const scBase = buildScInfo(layer, m.smallSize);
@@ -140,6 +100,66 @@ export async function renderTextLayer(canvas, layer) {
 
     const y = startY + i * (m.lineH + m.gap) + m.ascent;
     drawLine(ctx, line, startX, y, m.letterSpacing, sc);
+  }
+}
+
+/**
+ * Render a free text layer onto its (already-sized) offscreen canvas. When
+ * fillPattern is set (and not 'solid'), the pattern tiles across the layer's
+ * bounding box and is masked by the glyph shapes. Returns the measured
+ * dimensions so the caller can correct stale layer.width/height.
+ */
+export async function renderTextLayer(canvas, layer) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  await document.fonts.load(fontSpec(layer));
+
+  const m = measureTextLayer(layer);
+  if (!layer.text) return { width: m.width, height: m.height };
+
+  applyFont(ctx, layer.fontSize, layer.font, layer.bold, layer.italic);
+  ctx.textBaseline = 'alphabetic';
+
+  const cx = layer.x + m.width / 2;
+  const cy = layer.y + m.height / 2;
+  const patId = layer.fillPattern ?? 'solid';
+  const usePattern = patId !== 'solid';
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((layer.rotation * Math.PI) / 180);
+  ctx.scale(layer.flipH ? -1 : 1, layer.flipV ? -1 : 1);
+
+  if (layer.invert) {
+    // Invert mode: paint the bounding box, then draw text as cutout.
+    if (usePattern) {
+      // Fill bounding box with pattern, then cut out glyph shapes.
+      ctx.fillStyle = createCanvasPattern(ctx, patId);
+      ctx.fillRect(-m.width / 2, -m.height / 2, m.width, m.height);
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'black';
+      drawGlyphs(ctx, m, layer);
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(-m.width / 2, -m.height / 2, m.width, m.height);
+      ctx.fillStyle = 'white';
+      drawGlyphs(ctx, m, layer);
+    }
+  } else {
+    if (usePattern) {
+      // Draw glyph shapes as solid black mask, then fill with pattern.
+      ctx.fillStyle = 'black';
+      drawGlyphs(ctx, m, layer);
+      ctx.globalCompositeOperation = 'source-in';
+      ctx.fillStyle = createCanvasPattern(ctx, patId);
+      ctx.fillRect(-m.width / 2, -m.height / 2, m.width, m.height);
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.fillStyle = 'black';
+      drawGlyphs(ctx, m, layer);
+    }
   }
 
   ctx.restore();

@@ -5,6 +5,7 @@ import {
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   CaseUpper, AArrowDown,
 } from 'lucide-react';
+import PatternPicker from './PatternPicker.jsx';
 
 const FONTS = [
   'Arial Black',
@@ -163,6 +164,11 @@ export default function BigTextControls({ layer, onChange, focusTextNonce }) {
           })}
         </div>
       </div>
+
+      <PatternPicker
+        value={layer.fillPattern}
+        onChange={v => set({ fillPattern: v })}
+      />
 
       <div className="control-group">
         <span>Invert</span>

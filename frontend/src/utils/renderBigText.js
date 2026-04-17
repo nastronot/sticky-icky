@@ -1,5 +1,6 @@
 import { PAD, applyFont, drawLine, measureLine, fitLines } from './textFitting.js';
 import { applyDither } from './dither.js';
+import { createCanvasPattern } from './patterns.js';
 
 /** Evenly distribute words across numLines. */
 function splitWords(words, numLines) {
@@ -35,35 +36,13 @@ function fitText(ctx, displayText, originalText, canvasW, canvasH, font, bold, i
   return best;
 }
 
-/** Paint the (transparent or solid-black) background and the fitted text on
- *  `canvas`. When `invert` is true the canvas is filled solid black and the
- *  text is drawn in white — Big Text fills the whole label, so the entire
- *  canvas serves as the inverted layer's bounding box. */
-function drawText(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert) {
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width;
-  const H = canvas.height;
-
-  if (invert) {
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, W, H);
-  } else {
-    ctx.clearRect(0, 0, W, H);
-  }
-
-  if (!displayText.trim()) return;
-
-  const fit = fitText(ctx, displayText, originalText, W, H, font, bold, italic, letterSpacing, smallCaps);
-  if (!fit) return;
-
-  applyFont(ctx, fit.size, font, bold, italic);
-  ctx.fillStyle = invert ? 'white' : 'black';
-  ctx.textBaseline = 'alphabetic';
-
+/** Draw text glyphs on ctx (no fill setup — caller sets fillStyle). */
+function drawFittedGlyphs(ctx, fit, W, H, hAlign, letterSpacing, smallCaps) {
   const maxW = W - PAD * 2;
   const smallSize = Math.round(fit.size * 0.7);
 
   let startY;
+  const vAlign = fit.vAlign ?? 'middle';
   if (vAlign === 'top') startY = PAD;
   else if (vAlign === 'bottom') startY = H - PAD - fit.totalH;
   else startY = (H - fit.totalH) / 2;
@@ -71,11 +50,10 @@ function drawText(canvas, displayText, originalText, font, bold, italic, smallCa
   for (let i = 0; i < fit.lines.length; i++) {
     const line = fit.lines[i];
     const origLine = fit.origLines[i];
-    const scInfo = smallCaps ? { origLine, fullSize: fit.size, smallSize, font, bold, italic } : null;
+    const scInfo = smallCaps ? { origLine, fullSize: fit.size, smallSize, font: fit.font ?? '', bold: fit.bold ?? false, italic: fit.italic ?? false } : null;
     const lineW = measureLine(ctx, line, letterSpacing, scInfo);
     let startX;
     let lineLetterSpacing = letterSpacing;
-    let lineScInfo = scInfo;
 
     if (hAlign === 'justify' && [...line].length > 1) {
       const naturalW = measureLine(ctx, line, 0, scInfo);
@@ -90,27 +68,83 @@ function drawText(canvas, displayText, originalText, font, bold, italic, smallCa
     }
 
     const y = startY + i * (fit.lineH + fit.gap) + fit.maxAscent;
-    drawLine(ctx, line, startX, y, lineLetterSpacing, lineScInfo);
+    drawLine(ctx, line, startX, y, lineLetterSpacing, scInfo);
+  }
+}
+
+/** Paint background + fitted text on canvas, with optional pattern fill. */
+function drawText(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert, fillPattern) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!displayText.trim()) {
+    if (invert) {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, W, H);
+    }
+    return;
+  }
+
+  const fit = fitText(ctx, displayText, originalText, W, H, font, bold, italic, letterSpacing, smallCaps);
+  if (!fit) return;
+
+  // Stash font/style info on fit so drawFittedGlyphs can use it for small caps
+  fit.font = font;
+  fit.bold = bold;
+  fit.italic = italic;
+  fit.vAlign = vAlign;
+
+  applyFont(ctx, fit.size, font, bold, italic);
+  ctx.textBaseline = 'alphabetic';
+
+  const patId = fillPattern ?? 'solid';
+  const usePattern = patId !== 'solid';
+
+  if (invert) {
+    if (usePattern) {
+      // Fill canvas with pattern, then cut out glyph shapes.
+      ctx.fillStyle = createCanvasPattern(ctx, patId);
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'black';
+      applyFont(ctx, fit.size, font, bold, italic);
+      drawFittedGlyphs(ctx, fit, W, H, hAlign, letterSpacing, smallCaps);
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'white';
+      drawFittedGlyphs(ctx, fit, W, H, hAlign, letterSpacing, smallCaps);
+    }
+  } else {
+    if (usePattern) {
+      // Draw glyph shapes as solid mask, then fill with pattern.
+      ctx.fillStyle = 'black';
+      drawFittedGlyphs(ctx, fit, W, H, hAlign, letterSpacing, smallCaps);
+      ctx.globalCompositeOperation = 'source-in';
+      ctx.fillStyle = createCanvasPattern(ctx, patId);
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.fillStyle = 'black';
+      drawFittedGlyphs(ctx, fit, W, H, hAlign, letterSpacing, smallCaps);
+    }
   }
 }
 
 /**
  * Render a Big Text layer onto a (sized) offscreen canvas: text + per-layer
- * dithering pass. The caller is responsible for ensuring the canvas dimensions
- * match the current label size before calling.
- *
- * Returns a Promise that resolves once any required font has loaded so the
- * caller can composite after rendering completes.
+ * dithering pass. Returns a Promise that resolves once the font has loaded.
  */
 export async function renderBigTextLayer(canvas, layer) {
-  const { text, font, bold, italic, smallCaps, allCaps, hAlign, vAlign, letterSpacing, invert, ditherAlgo, ditherAmount } = layer;
+  const { text, font, bold, italic, smallCaps, allCaps, hAlign, vAlign, letterSpacing, invert, fillPattern, ditherAlgo, ditherAmount } = layer;
   const displayText = (allCaps || smallCaps) ? text.toUpperCase() : text;
 
-  // Await font load before measuring/drawing to avoid stale glyph metrics.
-  const fontSpec = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}40px "${font}"`;
-  await document.fonts.load(fontSpec);
+  await document.fonts.load(`${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}40px "${font}"`);
 
-  drawText(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert);
+  drawText(canvas, displayText, text, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert, fillPattern);
 
   if (ditherAlgo !== 'none' && ditherAmount > 0) {
     const ctx = canvas.getContext('2d');

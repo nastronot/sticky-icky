@@ -1,12 +1,12 @@
 import { applyDither } from './dither.js';
+import { createCanvasPattern } from './patterns.js';
 
 /**
- * Render a solid-fill layer onto its (already-sized) offscreen canvas.
- * The fill is just a black rectangle painted under the layer's
- * translate/rotate/flip transform. Per-layer invert post-processes the
- * opaque pixels (swap black ↔ white) — semantically a no-op visible
- * through XOR composite, but kept for API consistency with the other
- * layer types. Dithering, if any, runs last.
+ * Render a fill layer onto its (already-sized) offscreen canvas. When the
+ * layer's fillPattern is 'solid' the fill is a plain black rectangle; for
+ * any other pattern the fill is tiled from the 1-bit pattern data at 1:1
+ * pixel resolution. Invert post-processes opaque pixels (black↔white).
+ * Dithering, if any, runs last.
  */
 export function renderFillLayer(canvas, layer) {
   const ctx = canvas.getContext('2d');
@@ -19,7 +19,13 @@ export function renderFillLayer(canvas, layer) {
   ctx.translate(cx, cy);
   ctx.rotate((layer.rotation * Math.PI) / 180);
   ctx.scale(layer.flipH ? -1 : 1, layer.flipV ? -1 : 1);
-  ctx.fillStyle = 'black';
+
+  const patId = layer.fillPattern ?? 'solid';
+  if (patId === 'solid') {
+    ctx.fillStyle = 'black';
+  } else {
+    ctx.fillStyle = createCanvasPattern(ctx, patId);
+  }
   ctx.fillRect(-layer.width / 2, -layer.height / 2, layer.width, layer.height);
   ctx.restore();
 

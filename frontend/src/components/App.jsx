@@ -195,7 +195,7 @@ export default function App() {
   // ── Global print settings (persisted to IndexedDB settings store) ────────
   const [darkness, setDarkness] = useState(15);
   const [speed, setSpeed] = useState(1);
-  const [xOffset, setXOffset] = useState(10);  // dots (GW p1, the known-good default)
+  const [xOffset, setXOffset] = useState(27);  // dots (GW p1, empirically tuned default)
   const [yOffset, setYOffset] = useState(0);    // dots
   const dropdownPresets = useMemo(() => buildDropdownList(presets), [presets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}

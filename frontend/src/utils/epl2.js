@@ -14,7 +14,7 @@
  * @param {number} yOffset - GW p2: vertical start position in dots, default 0
  * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number, darkness: number, speed: number, copies: number, xOffset: number, yOffset: number }}
  */
-export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1, copies = 1, xOffset = 10, yOffset = 0) {
+export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1, copies = 1, xOffset = 27, yOffset = 0) {
   const paddedWidth = Math.ceil(width / 8) * 8;
   const widthBytes = paddedWidth / 8;
 

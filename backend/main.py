@@ -55,7 +55,7 @@ class PrintRequest(BaseModel):
     darkness: int = Field(default=12, ge=0, le=15)  # EPL2 D command (0–15)
     speed: int = Field(default=1, ge=1, le=4)       # EPL2 S command (1–4)
     copies: int = Field(default=1, ge=1, le=99)     # EPL2 P command (1–99)
-    xOffset: int = Field(default=10, ge=0, le=MAX_DOTS)   # GW p1: horizontal start position in dots
+    xOffset: int = Field(default=27, ge=0, le=MAX_DOTS)   # GW p1: horizontal start position in dots
     yOffset: int = Field(default=0, ge=0, le=MAX_DOTS)   # GW p2: vertical start position in dots
 
 

@@ -1,6 +1,6 @@
 /**
  * Pack RGBA image data to 1bpp row-major bitmap and return a JSON-ready
- * payload for the LO-based print endpoint.
+ * payload for the print endpoint.
  *
  * @param {Uint8ClampedArray} imageData - RGBA pixel data (Canvas ImageData.data)
  * @param {number} width - Image width in pixels
@@ -10,9 +10,11 @@
  * @param {number} darkness - EPL2 D command value, 0–15
  * @param {number} speed - EPL2 S command value, 1–4
  * @param {number} copies - EPL2 P command value, 1–99
- * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number, darkness: number, speed: number, copies: number }}
+ * @param {number} xOffset - GW X offset in bytes, default 8
+ * @param {number} yOffset - GW Y offset in dots, default 0
+ * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number, darkness: number, speed: number, copies: number, xOffset: number, yOffset: number }}
  */
-export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1, copies = 1) {
+export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1, copies = 1, xOffset = 8, yOffset = 0) {
   const paddedWidth = Math.ceil(width / 8) * 8;
   const widthBytes = paddedWidth / 8;
 
@@ -42,5 +44,5 @@ export function encodePrintPayload(imageData, width, height, labelW, labelH, dar
   }
   const base64 = btoa(binary);
 
-  return { bitmap: base64, width: paddedWidth, height, labelW, labelH, darkness, speed, copies };
+  return { bitmap: base64, width: paddedWidth, height, labelW, labelH, darkness, speed, copies, xOffset, yOffset };
 }

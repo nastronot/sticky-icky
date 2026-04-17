@@ -57,7 +57,7 @@ Layer state in App (React)
   → CanvasPreview renders each layer to its own offscreen canvas
   → xorComposite flattens visible layers onto the print canvas
   → encodePrintPayload (frontend) packs 1bpp row-major MSB-first bytes (1=black, 0=white) and base64 encodes
-  → POST /print  { bitmap, width, height, labelW, labelH, darkness, speed, copies }
+  → POST /print  { bitmap, width, height, labelW, labelH, darkness, speed, copies, xOffset, yOffset }
   → backend XORs every byte 0xFF (GW expects 0=black, 1=white)
   → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 38400 8N1, RTS/CTS
 ```
@@ -73,15 +73,16 @@ q{width}\r\n                               — label width in dots (= padded bit
 Q{labelH},21\r\n                           — label height in dots + 21-dot inter-label gap
 D{darkness}\r\n                            — print darkness (0–15)
 S{speed}\r\n                               — print speed (1–4)
-GW10,0,{width_bytes},{height}\r\n          — Direct Graphic Write at (10, 0)
+GW{xOffset},{yOffset},{width_bytes},{height}\r\n  — Direct Graphic Write at (xOffset, yOffset)
 {raw inverted bitmap bytes}                — width_bytes × height bytes, NO separator
 P{copies}\r\n                              — print N copies
 ```
 
 Notes:
 - The `q` command receives the *padded* bitmap width, not the user-facing label width — the printer expects q to match the byte count GW will stream.
-- `GW10,0` shifts the bitmap 10 bytes (= 80 dots) to the right of the print head's left edge so it lines up with the physical label. This is empirically calibrated for the current label stock + guides; if the stock changes, re-measure (print a long horizontal rule, see how many dots are missing, adjust the X offset).
-- Frontend hard-codes `darkness: 15`, `speed: 1` and exposes a copies number input; the per-print sliders that used to live in the sidebar are gone.
+- `GW{xOffset},{yOffset}` positions the bitmap on the label. xOffset is in bytes (multiply by 8 for dots). These values come from the active label stock's per-stock settings (default xOffset=8, yOffset=0). The user can override per-stock in the PresetEditor.
+- Darkness and speed come from the active label stock (default D15 S1). The frontend no longer hardcodes these — they're per-stock settings editable in the PresetEditor.
+- **yOffset caveat**: the current rendering pipeline always sizes the bitmap to exactly `labelH` dots tall, so yOffset has no visible effect unless the pipeline changes to produce shorter bitmaps. The field is kept for future calibration use.
 
 ### GW bit polarity
 
@@ -132,13 +133,13 @@ Both apps are containerized and deployed to a Synology NAS.
 - **Canvas interaction**: drag, 8 resize handles (corners + edges), rotation handle, shift inverts the layer's `lockAspect` for the drag, shift snaps rotation to 45°. Pointer math handles viewport rotation.
 - **Compositing**: XOR (default) — overlapping black flips to white. Per-layer toggle for solid overwrite mode.
 - **Image crop**: per-image crop mode with draggable green crop rectangle, Apply replaces the layer's `originalImage` with the cropped slice.
-- **Save / load**: full design state to IndexedDB (`sticky_zebra` db, `designs` + `autosave` stores). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout.
+- **Save / load**: full design state to IndexedDB (`sticky_zebra` db, `designs` + `autosave` stores). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout. Designs reference their label stock by `presetId` (stable across reorder/delete); legacy designs that stored `presetIdx` are migrated on load.
 - **Autosave**: 350 ms-debounced burst-coalesced snapshot to the `autosave` store on every layer mutation; mount-time prompt to restore if a snapshot exists.
 - **Undo / redo**: 20-entry history with the same 350 ms burst coalescing. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y.
 - **Keyboard shortcuts**: arrow nudge (1 px / 10 px with shift), Delete to remove layer, Escape to deselect, Ctrl+D to duplicate, Ctrl+V to paste image from clipboard.
 - **Drag-and-drop image files** anywhere in the studio.
-- **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; one-time ruler-based calibration modal stored in localStorage).
-- **Label-size presets**: stored in localStorage at `thermal_label_presets_v2`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
+- **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; one-time ruler-based calibration modal stored in IndexedDB settings store).
+- **Label stocks (presets)**: stored in IndexedDB (`sticky_zebra.presets`). Each stock carries dimensions plus per-stock print settings: `{ id, label, w, h, favorite, darkness, speed, xOffset, yOffset, calibrated, calibratedAt }`. User-managed list (add, delete, favorite, edit print settings). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly. The PresetEditor modal has expandable per-stock settings for darkness, speed, xOffset, yOffset.
 - **Fonts**: Google Fonts collection (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
 
 ---
@@ -151,7 +152,7 @@ Both apps are containerized and deployed to a Synology NAS.
 | Canvas        | HTML5 Canvas API (no Konva — that's spec leftovers) |
 | Icons         | lucide-react                                        |
 | Dithering     | Hand-rolled in `src/utils/dither.js`                |
-| Storage       | IndexedDB (`sticky_zebra` db) + localStorage for calibration / presets / DPI |
+| Storage       | IndexedDB (`sticky_zebra` db v2) — designs, autosave, presets, settings |
 | Backend       | FastAPI + pyserial                                  |
 | Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1, rtscts=True)` |
 
@@ -204,15 +205,18 @@ sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill 
 
 - **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (it produces blank labels). Serial is the *only* working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code; the LO-command fallback is gone.
 - **Baud rate is 38400** — the maximum reliable speed for this printer. 57600+ produces dropped bytes and partial labels. 9600 also works but is unnecessarily slow for full-page bitmaps.
-- **`GW10,0` offset**: the GW command's X offset (10 bytes = 80 dots) is empirically calibrated for the current label stock + guides. If you change label width or mechanical guides, re-measure.
+- **GW offset is per-stock**: `GW{xOffset},{yOffset}` — xOffset and yOffset are stored per label stock (default xOffset=8, yOffset=0). The previous hardcoded `GW10,0` was replaced by per-stock values. xOffset is in bytes (× 8 for dots).
 - **`q` matches the bitmap width**, not `labelW`. The bitmap width is padded to the next multiple of 8 by the frontend; the `q` command must match what `GW` actually streams.
-- **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. The shipped frontend hard-codes `D15 S1` which is reliable for the dense raster art this app produces.
+- **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. Default per-stock settings are `D15 S1` which is reliable for the dense raster art this app produces. These are now editable per label stock in the PresetEditor.
+- **yOffset is inert given current pipeline**: the bitmap is always sized to exactly `labelH` dots, so yOffset has no effect. The field exists for future calibration features that may produce shorter bitmaps.
 - **245 KB image buffer** is the hard ceiling for a single print. An 832×2400 1-bit bitmap is ~249 KB and will fail. Test large prints early.
 - **`/dev/ttyUSB0` permissions**: the user needs to be in the `dialout` (or `uucp`) group, e.g. `sudo usermod -aG dialout matt`. **The permission resets every time the USB-to-serial adapter is reconnected**, so an `udev` rule or `chmod 666 /dev/ttyUSB0` is the easy workaround for dev.
 - **GW data follows immediately**: the binary bitmap follows the `GW` command line right after its `\r\n` with no separator. Any extra bytes between the command and the data desync the printer.
 - **Bit polarity is inverted**: GW expects `0=black, 1=white`. The frontend packs `1=black, 0=white`. The backend XORs every byte with `0xFF` before sending. Don't move that inversion to the frontend — the rest of the canvas/composite pipeline assumes 1=black.
 - **CUPS raw queue** (`ZebraLP2844`) exists if `lpstat` is run, but the backend bypasses CUPS entirely and writes directly to the serial device.
 - **Dithering must be applied before encoding** — the printer has no grayscale capability whatsoever.
+- **IndexedDB v1→v2 migration**: on first load after the v2 upgrade, presets migrate from `localStorage:thermal_label_presets_v2` and screen DPI from `localStorage:thermal_screen_dpi` into IndexedDB stores (`presets` and `settings`). The localStorage keys are deleted after successful migration. If migration fails, the app seeds fresh defaults.
+- **presetIdx→presetId migration**: saved designs created before v2 store `presetIdx` (an index). On load, `deserializeDesign` resolves the index to a stable `presetId` using the current dropdown list. If the index is out of range (presets were deleted/reordered), the design falls back to the Custom preset with its stored `customW`/`customH`/`labelW`/`labelH` so it still renders at the right size.
 
 ### Frontend rendering quirks
 

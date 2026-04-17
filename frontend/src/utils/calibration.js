@@ -1,32 +1,19 @@
-// Tiny localStorage-backed store for the screen DPI calibration result.
-// Lives outside storage.js (which is IndexedDB-only) because the calibrated
-// value is small, single-record, and read synchronously on mount.
+// Screen DPI calibration — backed by IndexedDB (sticky_zebra.settings).
+// The value migrates from localStorage on first v2 DB open (see storage.js).
 
-const DPI_KEY = 'thermal_screen_dpi';
+import { loadSetting, saveSetting, deleteSetting } from './storage.js';
 
-export function loadScreenDPI() {
-  try {
-    const raw = localStorage.getItem(DPI_KEY);
-    if (!raw) return null;
-    const v = Number(raw);
-    return Number.isFinite(v) && v > 0 ? v : null;
-  } catch {
-    return null;
-  }
+export async function loadScreenDPI() {
+  const v = await loadSetting('screenDPI');
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export function saveScreenDPI(dpi) {
-  try {
-    localStorage.setItem(DPI_KEY, String(dpi));
-  } catch {
-    /* quota / privacy mode — ignore */
-  }
+export async function saveScreenDPI(dpi) {
+  await saveSetting('screenDPI', dpi);
 }
 
-export function clearScreenDPI() {
-  try {
-    localStorage.removeItem(DPI_KEY);
-  } catch {
-    /* ignore */
-  }
+export async function clearScreenDPI() {
+  await deleteSetting('screenDPI');
 }

@@ -9,6 +9,7 @@ import {
   savePresets,
   buildDropdownList,
   makePreset,
+  CUSTOM_PRESET,
 } from '../utils/presets.js';
 import { ImagePlus } from 'lucide-react';
 import { measureTextLayer } from '../utils/renderText.js';
@@ -183,19 +184,14 @@ export default function App() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [customW, setCustomW] = useState(4.0);
   const [customH, setCustomH] = useState(2.0);
-  // Print darkness and speed are fixed — D15 S1 is the reliable combination
-  // for our LP2844 / dense raster art and the sliders never moved off these
-  // values in practice. Inline the constants here and skip the UI clutter.
-  const DARKNESS = 15;
-  const SPEED = 1;
   const [printStatus, setPrintStatus] = useState(null); // null | 'printing' | 'ok' | {error}
   const [copies, setCopies] = useState(1);
   const [viewportRotation, setViewportRotation] = useState(0); // 0 | 90 (purely visual)
   const [trueSize, setTrueSize] = useState(false);
   const [cropMode, setCropMode] = useState(null); // null | { layerId, rect: { x, y, w, h } } in image-pixel space
-  const [screenDPI, setScreenDPI] = useState(() => loadScreenDPI());
+  const [screenDPI, setScreenDPI] = useState(null);
   const [calibrationOpen, setCalibrationOpen] = useState(false);
-  const [presets, setPresets] = useState(() => loadPresets());
+  const [presets, setPresets] = useState([]);
   const [presetEditorOpen, setPresetEditorOpen] = useState(false);
   const dropdownPresets = useMemo(() => buildDropdownList(presets), [presets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
@@ -212,6 +208,12 @@ export default function App() {
   const preset = dropdownPresets[safePresetIdx];
   const labelW = preset.w ?? Math.round(customW * 203);
   const labelH = preset.h ?? Math.round(customH * 203);
+
+  // Per-stock print settings — pulled from the active stock (preset or Custom).
+  const stockDarkness = preset.darkness ?? 15;
+  const stockSpeed = preset.speed ?? 1;
+  const stockXOffset = preset.xOffset ?? 8;
+  const stockYOffset = preset.yOffset ?? 0;
 
   const selectedLayer = layers.find(l => l.id === selectedLayerId) ?? null;
   const visibleCanvasRef = useRef(null);
@@ -388,7 +390,8 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const body = encodePrintPayload(
-      imageData.data, canvas.width, canvas.height, labelW, labelH, DARKNESS, SPEED, copies,
+      imageData.data, canvas.width, canvas.height, labelW, labelH,
+      stockDarkness, stockSpeed, copies, stockXOffset, stockYOffset,
     );
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8765';
@@ -406,7 +409,7 @@ export default function App() {
     } catch (err) {
       setPrintStatus({ error: err.message });
     }
-  }, [labelW, labelH, copies]);
+  }, [labelW, labelH, copies, stockDarkness, stockSpeed, stockXOffset, stockYOffset]);
 
   const handlePresetIdxChange = useCallback((i) => {
     setPresetIdx(i);
@@ -435,31 +438,24 @@ export default function App() {
   }, []);
 
   // ── Label-size presets ────────────────────────────────────────────────────
-  const handleAddPreset = useCallback((label, widthInches, heightInches) => {
+  const handleAddPreset = useCallback(async (label, widthInches, heightInches) => {
     const next = makePreset(label, widthInches, heightInches);
-    setPresets(prev => {
-      const updated = [...prev, next];
-      savePresets(updated);
-      return updated;
-    });
-  }, []);
+    setPresets(prev => [...prev, next]);
+    // Persist asynchronously — state is already updated optimistically.
+    savePresets([...presets, next]).catch(err => console.warn('Failed to save presets:', err));
+  }, [presets]);
 
-  const handleDeletePreset = useCallback((id) => {
-    setPresets(prev => {
-      // Refuse to delete the last remaining preset — the dropdown still has
-      // the Custom sentinel after this, so the user could keep working, but
-      // the spec asks for at least one user-managed preset.
-      if (prev.length <= 1) return prev;
-      const updated = prev.filter(p => p.id !== id);
-      savePresets(updated);
-      return updated;
-    });
-  }, []);
+  const handleDeletePreset = useCallback(async (id) => {
+    if (presets.length <= 1) return;
+    const updated = presets.filter(p => p.id !== id);
+    setPresets(updated);
+    savePresets(updated).catch(err => console.warn('Failed to save presets:', err));
+  }, [presets]);
 
   const handleToggleFavoritePreset = useCallback((id) => {
     const updated = presets.map(p => (p.id === id ? { ...p, favorite: !p.favorite } : p));
-    savePresets(updated);
     setPresets(updated);
+    savePresets(updated).catch(err => console.warn('Failed to save presets:', err));
     // Toggling a favorite reorders the dropdown list. Re-find the previously
     // selected preset by id so the user's selection follows it.
     const oldList = buildDropdownList(presets);
@@ -470,6 +466,12 @@ export default function App() {
       if (newIdx >= 0 && newIdx !== presetIdx) setPresetIdx(newIdx);
     }
   }, [presets, presetIdx]);
+
+  const handleUpdatePreset = useCallback((id, patch) => {
+    const updated = presets.map(p => (p.id === id ? { ...p, ...patch } : p));
+    setPresets(updated);
+    savePresets(updated).catch(err => console.warn('Failed to save presets:', err));
+  }, [presets]);
 
   // Refresh the gallery's design list from IndexedDB. Called whenever the
   // gallery opens, after a save, and after a delete / favorite toggle.
@@ -504,7 +506,7 @@ export default function App() {
       return;
     }
     try {
-      const restored = await deserializeDesign(design);
+      const restored = await deserializeDesign(design, dropdownPresets);
       // Suppress history capture for the destructive replace — undo would
       // be confusing across a full design swap.
       suppressNextHistoryRef.current = true;
@@ -518,7 +520,7 @@ export default function App() {
       console.error('Load failed:', err);
       window.alert(`Load failed: ${err.message ?? err}`);
     }
-  }, [layers]);
+  }, [layers, dropdownPresets]);
 
   const handleDeleteDesign = useCallback(async (id) => {
     try {
@@ -650,7 +652,7 @@ export default function App() {
       const design = serializeDesign({
         name: name.trim() || defaultName,
         layers,
-        presetIdx,
+        presetId: preset.id,
         customW,
         customH,
         labelW,
@@ -664,18 +666,39 @@ export default function App() {
       console.error('Save failed:', err);
       setSaveStatus({ error: err.message ?? 'Save failed' });
     }
-  }, [layers, presetIdx, customW, customH, labelW, labelH]);
+  }, [layers, preset, customW, customH, labelW, labelH]);
 
-  // ── Autosave + session restore ────────────────────────────────────────────
-  // On mount, check for an autosaved snapshot and offer to restore it. Until
-  // that one-shot check completes (and the user has decided), the autosave
-  // effect short-circuits — otherwise the default initial layers would
-  // immediately overwrite the snapshot before we got a chance to ask.
+  // ── Async init: presets, DPI, autosave ──────────────────────────────────
+  // On mount, load presets and screen DPI from IndexedDB, then check for
+  // an autosaved snapshot and offer to restore it. Until this one-shot
+  // init completes, the autosave effect short-circuits so the default
+  // initial layers don't immediately overwrite the snapshot.
   const autosaveReadyRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 1. Load presets + DPI from IndexedDB.
+      let loadedPresets = [];
+      try {
+        loadedPresets = await loadPresets();
+      } catch (err) {
+        console.warn('Failed to load presets:', err);
+      }
+      let loadedDPI = null;
+      try {
+        loadedDPI = await loadScreenDPI();
+      } catch (err) {
+        console.warn('Failed to load screen DPI:', err);
+      }
+      if (cancelled) return;
+      setPresets(loadedPresets);
+      if (loadedDPI !== null) setScreenDPI(loadedDPI);
+
+      // Build dropdown from loaded presets for deserializeDesign.
+      const ddPresets = buildDropdownList(loadedPresets);
+
+      // 2. Check for autosaved snapshot.
       let snap = null;
       try {
         snap = await loadAutoSave();
@@ -685,7 +708,7 @@ export default function App() {
       if (cancelled) return;
       if (snap && window.confirm('Restore last session?')) {
         try {
-          const restored = await deserializeDesign(snap);
+          const restored = await deserializeDesign(snap, ddPresets);
           if (cancelled) return;
           suppressNextHistoryRef.current = true;
           setLayers(restored.layers);
@@ -716,7 +739,7 @@ export default function App() {
         const snap = serializeDesign({
           name: 'autosave',
           layers,
-          presetIdx,
+          presetId: preset.id,
           customW,
           customH,
           labelW,
@@ -731,7 +754,7 @@ export default function App() {
       }
     }, 2000);
     return () => clearTimeout(handle);
-  }, [layers, presetIdx, customW, customH, labelW, labelH]);
+  }, [layers, preset, customW, customH, labelW, labelH]);
 
   // ── Paste image from clipboard ────────────────────────────────────────────
   // Document-level paste listener. Skips when focus is on a text input so the
@@ -1023,6 +1046,7 @@ export default function App() {
           onAdd={handleAddPreset}
           onDelete={handleDeletePreset}
           onToggleFavorite={handleToggleFavoritePreset}
+          onUpdate={handleUpdatePreset}
           onClose={() => setPresetEditorOpen(false)}
         />
       )}

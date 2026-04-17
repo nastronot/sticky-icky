@@ -1,23 +1,32 @@
-// IndexedDB-backed storage for saved designs and the autosave snapshot.
+// IndexedDB-backed storage for designs, autosave, label-stock presets, and
+// app settings (screen DPI, etc.).
 //
-// localStorage's ~5MB cap is easily exceeded by image-heavy designs, so we
-// keep everything in IndexedDB instead. The schema is intentionally simple:
-//
+// Schema (version 2):
 //   db: "sticky_zebra"
-//     designs  — keyPath "id"        — every saved design
-//     autosave — single record at key "current"
+//     designs  — keyPath "id"          — every saved design
+//     autosave — no keyPath, single record at key "current"
+//     presets  — keyPath "id"          — label-stock presets
+//     settings — no keyPath, keyed by setting name (e.g. "screenDPI")
 //
-// On first open we migrate any leftover thermal_designs / thermal_autosave
-// localStorage entries from the previous storage backend, then delete them.
+// Version 1→2 migration adds the presets and settings stores and pulls in
+// data from localStorage (thermal_label_presets_v2, thermal_screen_dpi).
+// The legacy thermal_designs / thermal_autosave localStorage migration from
+// v1 is preserved for users who never opened v1.
 
 const DB_NAME = 'sticky_zebra';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_DESIGNS = 'designs';
 const STORE_AUTOSAVE = 'autosave';
+const STORE_PRESETS = 'presets';
+const STORE_SETTINGS = 'settings';
 const AUTOSAVE_KEY = 'current';
 
+// Legacy localStorage keys — read once during migration, then deleted.
 const LEGACY_DESIGNS_KEY = 'thermal_designs';
 const LEGACY_AUTOSAVE_KEY = 'thermal_autosave';
+const LEGACY_PRESETS_KEY_V2 = 'thermal_label_presets_v2';
+const LEGACY_PRESETS_KEY_V1 = 'thermal_label_presets';
+const LEGACY_DPI_KEY = 'thermal_screen_dpi';
 
 // ── IndexedDB wrapper ─────────────────────────────────────────────────────────
 
@@ -26,13 +35,28 @@ let dbReadyPromise = null;
 function openRawDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_DESIGNS)) {
-        db.createObjectStore(STORE_DESIGNS, { keyPath: 'id' });
+      const oldVersion = event.oldVersion;
+
+      // v0→v1: create designs + autosave stores
+      if (oldVersion < 1) {
+        if (!db.objectStoreNames.contains(STORE_DESIGNS)) {
+          db.createObjectStore(STORE_DESIGNS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORE_AUTOSAVE)) {
+          db.createObjectStore(STORE_AUTOSAVE);
+        }
       }
-      if (!db.objectStoreNames.contains(STORE_AUTOSAVE)) {
-        db.createObjectStore(STORE_AUTOSAVE);
+
+      // v1→v2: create presets + settings stores
+      if (oldVersion < 2) {
+        if (!db.objectStoreNames.contains(STORE_PRESETS)) {
+          db.createObjectStore(STORE_PRESETS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+          db.createObjectStore(STORE_SETTINGS);
+        }
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -86,6 +110,11 @@ async function dbDelete(store, key) {
   return reqToPromise(tx(db, store, 'readwrite').delete(key));
 }
 
+async function dbClear(store) {
+  const db = await openDB();
+  return reqToPromise(tx(db, store, 'readwrite').clear());
+}
+
 // ── Migration from localStorage ───────────────────────────────────────────────
 
 async function migrateFromLocalStorage(db) {
@@ -98,6 +127,7 @@ async function migrateFromLocalStorage(db) {
     req.onerror = () => reject(req.error);
   });
 
+  // ── v1 legacy: designs + autosave from localStorage ──
   const oldDesignsRaw = localStorage.getItem(LEGACY_DESIGNS_KEY);
   if (oldDesignsRaw) {
     try {
@@ -122,6 +152,56 @@ async function migrateFromLocalStorage(db) {
       console.warn('Failed to parse legacy autosave:', err);
     }
     localStorage.removeItem(LEGACY_AUTOSAVE_KEY);
+  }
+
+  // ── v2 migration: presets from localStorage → IndexedDB ──
+  // Check if the presets store is already populated (don't re-migrate).
+  const existingPresets = await new Promise((resolve, reject) => {
+    const s = db.transaction(STORE_PRESETS, 'readonly').objectStore(STORE_PRESETS);
+    const r = s.count();
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+
+  if (existingPresets === 0) {
+    // Try v2 key first, then v1
+    let presets = null;
+    const v2Raw = localStorage.getItem(LEGACY_PRESETS_KEY_V2);
+    if (v2Raw) {
+      try {
+        const parsed = JSON.parse(v2Raw);
+        if (Array.isArray(parsed)) presets = parsed;
+      } catch { /* fall through */ }
+    }
+    if (!presets) {
+      const v1Raw = localStorage.getItem(LEGACY_PRESETS_KEY_V1);
+      if (v1Raw) {
+        try {
+          const parsed = JSON.parse(v1Raw);
+          if (Array.isArray(parsed)) presets = parsed;
+        } catch { /* ignore */ }
+      }
+    }
+    if (presets) {
+      for (const p of presets) {
+        if (p && p.id) await putRaw(STORE_PRESETS, p);
+      }
+    }
+  }
+  // Clean up both preset localStorage keys regardless
+  localStorage.removeItem(LEGACY_PRESETS_KEY_V2);
+  localStorage.removeItem(LEGACY_PRESETS_KEY_V1);
+
+  // ── v2 migration: screen DPI from localStorage → IndexedDB ──
+  const dpiRaw = localStorage.getItem(LEGACY_DPI_KEY);
+  if (dpiRaw) {
+    try {
+      const v = Number(dpiRaw);
+      if (Number.isFinite(v) && v > 0) {
+        await putRaw(STORE_SETTINGS, v, 'screenDPI');
+      }
+    } catch { /* ignore */ }
+    localStorage.removeItem(LEGACY_DPI_KEY);
   }
 }
 
@@ -177,15 +257,16 @@ async function deserializeLayer(l) {
 
 // ── Whole-design serialize / deserialize ──────────────────────────────────────
 
-/** Build a serializable design object from current app state. */
-export function serializeDesign({ name, layers, presetIdx, customW, customH, labelW, labelH, thumbnail, favorite = false }) {
+/** Build a serializable design object from current app state.
+ *  Stores presetId (stable across reorder/delete) instead of presetIdx. */
+export function serializeDesign({ name, layers, presetId, customW, customH, labelW, labelH, thumbnail, favorite = false }) {
   return {
     id: `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name,
     thumbnail,
     savedAt: new Date().toISOString(),
     favorite,
-    presetIdx,
+    presetId,
     customW,
     customH,
     labelW,
@@ -194,12 +275,37 @@ export function serializeDesign({ name, layers, presetIdx, customW, customH, lab
   };
 }
 
-/** Async because image layers reconstruct an ImageData via an Image element. */
-export async function deserializeDesign(design) {
+/** Async because image layers reconstruct an ImageData via an Image element.
+ *  Resolves presetId to a dropdown index; falls back to Custom if the stock
+ *  was deleted. Also handles legacy designs that stored presetIdx. */
+export async function deserializeDesign(design, dropdownPresets) {
   const layers = await Promise.all(design.layers.map(deserializeLayer));
+
+  let presetId = design.presetId ?? null;
+
+  // Legacy migration: design stored presetIdx but no presetId.
+  if (!presetId && typeof design.presetIdx === 'number' && dropdownPresets) {
+    const legacy = dropdownPresets[design.presetIdx];
+    if (legacy && legacy.id) presetId = legacy.id;
+  }
+
+  // Resolve presetId → index in the current dropdown list.
+  let resolvedIdx = null;
+  if (presetId && dropdownPresets) {
+    const idx = dropdownPresets.findIndex(p => p.id === presetId);
+    if (idx >= 0) resolvedIdx = idx;
+  }
+
+  // If the stock no longer exists, fall back to Custom with saved dimensions.
+  if (resolvedIdx === null && dropdownPresets) {
+    resolvedIdx = dropdownPresets.findIndex(p => p.id === 'custom');
+    if (resolvedIdx < 0) resolvedIdx = dropdownPresets.length - 1;
+  }
+
   return {
     layers,
-    presetIdx: design.presetIdx,
+    presetId,
+    presetIdx: resolvedIdx ?? 0,
     customW: design.customW,
     customH: design.customH,
   };
@@ -291,4 +397,44 @@ export async function clearAutoSave() {
   } catch {
     /* ignore */
   }
+}
+
+// ── Presets (label stocks) ────────────────────────────────────────────────────
+
+export async function loadPresetsFromDB() {
+  return dbGetAll(STORE_PRESETS);
+}
+
+export async function savePresetToDB(preset) {
+  await dbPut(STORE_PRESETS, preset);
+}
+
+export async function deletePresetFromDB(id) {
+  await dbDelete(STORE_PRESETS, id);
+}
+
+export async function replaceAllPresets(presets) {
+  await dbClear(STORE_PRESETS);
+  for (const p of presets) {
+    await dbPut(STORE_PRESETS, p);
+  }
+}
+
+// ── Settings (screen DPI, etc.) ───────────────────────────────────────────────
+
+export async function loadSetting(key) {
+  try {
+    const val = await dbGet(STORE_SETTINGS, key);
+    return val ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveSetting(key, value) {
+  await dbPut(STORE_SETTINGS, value, key);
+}
+
+export async function deleteSetting(key) {
+  await dbDelete(STORE_SETTINGS, key);
 }

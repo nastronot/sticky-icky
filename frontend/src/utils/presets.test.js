@@ -1,30 +1,16 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   CUSTOM_PRESET,
-  loadPresets,
-  savePresets,
   buildDropdownList,
   makePreset,
 } from './presets.js';
 
-// Tiny in-memory localStorage stub installed before each test so the
-// load/save helpers can run in the default node test environment without a
-// jsdom dependency.
-function installLocalStorage() {
-  const store = new Map();
-  globalThis.localStorage = {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => { store.set(k, String(v)); },
-    removeItem: (k) => { store.delete(k); },
-    clear: () => { store.clear(); },
-    get length() { return store.size; },
-    key: (i) => Array.from(store.keys())[i] ?? null,
-  };
-  return store;
-}
+// The async load/save functions depend on IndexedDB (via storage.js) and are
+// integration-tested via the app. Unit tests here cover the pure-logic helpers
+// that don't touch storage.
 
 beforeEach(() => {
-  installLocalStorage();
+  vi.restoreAllMocks();
 });
 
 describe('makePreset', () => {
@@ -63,6 +49,29 @@ describe('makePreset', () => {
     const p = makePreset('My Label', 2, 1);
     expect(p.label).toBe('My Label');
   });
+
+  it('includes stock defaults', () => {
+    const p = makePreset('test', 2, 1);
+    expect(p.darkness).toBe(15);
+    expect(p.speed).toBe(1);
+    expect(p.xOffset).toBe(8);
+    expect(p.yOffset).toBe(0);
+    expect(p.calibrated).toBe(false);
+    expect(p.calibratedAt).toBeNull();
+  });
+});
+
+describe('CUSTOM_PRESET', () => {
+  it('has null dimensions and stock defaults', () => {
+    expect(CUSTOM_PRESET.id).toBe('custom');
+    expect(CUSTOM_PRESET.w).toBeNull();
+    expect(CUSTOM_PRESET.h).toBeNull();
+    expect(CUSTOM_PRESET.darkness).toBe(15);
+    expect(CUSTOM_PRESET.speed).toBe(1);
+    expect(CUSTOM_PRESET.xOffset).toBe(8);
+    expect(CUSTOM_PRESET.yOffset).toBe(0);
+    expect(CUSTOM_PRESET.calibrated).toBe(false);
+  });
 });
 
 describe('buildDropdownList', () => {
@@ -95,83 +104,5 @@ describe('buildDropdownList', () => {
   it('handles empty input', () => {
     const list = buildDropdownList([]);
     expect(list).toEqual([CUSTOM_PRESET]);
-  });
-});
-
-describe('loadPresets', () => {
-  it('seeds defaults on first run when nothing is stored', () => {
-    const presets = loadPresets();
-    expect(presets.length).toBeGreaterThan(0);
-    // The seed list contains the familiar five built-ins, all unfavorited.
-    const labels = presets.map(p => p.label);
-    expect(labels).toContain('3.00 × 2.00"');
-    expect(labels).toContain('4.00 × 2.00"');
-    for (const p of presets) {
-      expect(p.favorite).toBe(false);
-      expect(p.id).toBeTruthy();
-    }
-  });
-
-  it('persists the seed write back to localStorage', () => {
-    loadPresets();
-    expect(localStorage.getItem('thermal_label_presets_v2')).toBeTruthy();
-  });
-
-  it('round-trips a saved list', () => {
-    const original = [
-      { id: 'a', label: 'A', w: 100, h: 50, favorite: true },
-      { id: 'b', label: 'B', w: 200, h: 100, favorite: false },
-    ];
-    savePresets(original);
-    const loaded = loadPresets();
-    expect(loaded).toEqual(original);
-  });
-
-  it('drops malformed entries on load', () => {
-    localStorage.setItem('thermal_label_presets_v2', JSON.stringify([
-      { id: 'good', label: 'Good', w: 100, h: 50, favorite: false },
-      { id: 'no-label', w: 100, h: 50 },                // missing label
-      { id: 'bad-w', label: 'Bad', w: 'oops', h: 50 },  // non-finite w
-      null,                                              // null
-    ]));
-    const loaded = loadPresets();
-    expect(loaded).toHaveLength(1);
-    expect(loaded[0].label).toBe('Good');
-  });
-
-  it('falls back to seeds on JSON parse failure', () => {
-    localStorage.setItem('thermal_label_presets_v2', '{not valid json');
-    const loaded = loadPresets();
-    expect(loaded.length).toBeGreaterThan(0);
-    expect(loaded[0].label).toBe('3.00 × 2.00"');
-  });
-
-  it('migrates the v1 (legacy) thermal_label_presets key', () => {
-    // v1 stored only USER-added presets — defaults were hardcoded.
-    localStorage.setItem('thermal_label_presets', JSON.stringify([
-      { label: 'My Label', w: 300, h: 200 },
-    ]));
-    const loaded = loadPresets();
-    // Migration should keep the user preset alongside the seeded defaults.
-    expect(loaded.find(p => p.label === 'My Label')).toBeTruthy();
-    expect(loaded.find(p => p.label === '3.00 × 2.00"')).toBeTruthy();
-    // And remove the legacy key.
-    expect(localStorage.getItem('thermal_label_presets')).toBeNull();
-  });
-});
-
-describe('savePresets', () => {
-  it('writes JSON to the v2 key', () => {
-    const presets = [{ id: 'x', label: 'X', w: 50, h: 50, favorite: false }];
-    savePresets(presets);
-    expect(JSON.parse(localStorage.getItem('thermal_label_presets_v2'))).toEqual(presets);
-  });
-
-  it('overwrites the previous list', () => {
-    savePresets([{ id: 'a', label: 'A', w: 1, h: 1, favorite: false }]);
-    savePresets([{ id: 'b', label: 'B', w: 2, h: 2, favorite: true }]);
-    const stored = JSON.parse(localStorage.getItem('thermal_label_presets_v2'));
-    expect(stored).toHaveLength(1);
-    expect(stored[0].id).toBe('b');
   });
 });

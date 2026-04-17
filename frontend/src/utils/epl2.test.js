@@ -73,18 +73,23 @@ describe('encodePrintPayload', () => {
     expect(bytes[0]).toBe(0xaa); // 10101010
   });
 
-  it('darkness and speed default to 12 and 1', () => {
+  it('darkness, speed, xOffset, yOffset default correctly', () => {
     const data = makeRGBA(Array(8).fill(WHITE));
     const payload = encodePrintPayload(data, 8, 1, 100, 50);
     expect(payload.darkness).toBe(12);
     expect(payload.speed).toBe(1);
+    expect(payload.xOffset).toBe(8);
+    expect(payload.yOffset).toBe(0);
   });
 
-  it('darkness and speed pass through when explicitly set', () => {
+  it('darkness, speed, xOffset, yOffset pass through when explicitly set', () => {
     const data = makeRGBA(Array(8).fill(WHITE));
-    const payload = encodePrintPayload(data, 8, 1, 100, 50, 15, 3);
+    const payload = encodePrintPayload(data, 8, 1, 100, 50, 15, 3, 2, 10, 5);
     expect(payload.darkness).toBe(15);
     expect(payload.speed).toBe(3);
+    expect(payload.copies).toBe(2);
+    expect(payload.xOffset).toBe(10);
+    expect(payload.yOffset).toBe(5);
   });
 
   it('multi-row 8×2: each row contributes one byte', () => {

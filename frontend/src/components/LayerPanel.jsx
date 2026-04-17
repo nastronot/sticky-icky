@@ -100,17 +100,22 @@ export default function LayerPanel({
         <span>Layers</span>
       </div>
 
+      <div className="layer-stack-label top">Front</div>
       <ul
         className="layer-list"
         onDragOver={onListDragOver}
         onDrop={onDrop}
       >
-        {layers.map((layer, idx) => {
+        {/* Render in reverse so top-of-list = top-of-canvas-stack (front).
+            The data model is unchanged: index 0 = back, last = front.
+            Visual order: last layer first, first layer last. */}
+        {[...layers].reverse().map((layer) => {
+          const idx = layers.indexOf(layer);
           const selected = layer.id === selectedLayerId;
           const dragging = layer.id === dragId;
           return (
             <li key={layer.id} className="layer-row-wrap">
-              {insertIdx === idx && <div className="layer-insert-bar" />}
+              {insertIdx === idx + 1 && <div className="layer-insert-bar" />}
               <div
                 className={`layer-row ${selected ? 'selected' : ''} ${dragging ? 'dragging' : ''}`}
                 onClick={() => onSelect(layer.id)}
@@ -148,8 +153,9 @@ export default function LayerPanel({
             </li>
           );
         })}
-        {insertIdx === layers.length && <div className="layer-insert-bar" />}
+        {insertIdx === 0 && <div className="layer-insert-bar" />}
       </ul>
+      <div className="layer-stack-label bottom">Back</div>
 
       <div className="layer-add">
         <span className="layer-add-label">Add layer</span>

@@ -389,6 +389,8 @@
 
 .canvas-print {
   pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .canvas-overlay {
@@ -419,6 +421,23 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.layer-stack-label {
+  padding: 2px 14px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  opacity: 0.6;
+}
+
+.layer-stack-label.top {
+  padding-top: 6px;
+}
+
+.layer-stack-label.bottom {
+  padding-bottom: 4px;
 }
 
 .layer-list {
@@ -1331,14 +1350,13 @@
 
 .pattern-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
 .pattern-swatch {
   width: 100%;
-  aspect-ratio: 1;
-  padding: 2px;
+  padding: 3px;
   background: var(--bg-control);
   border: 2px solid var(--border-faint);
   border-radius: 4px;
@@ -1360,4 +1378,8 @@
 .pattern-swatch canvas {
   display: block;
   border-radius: 2px;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }

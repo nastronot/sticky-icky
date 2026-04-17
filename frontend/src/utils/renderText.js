@@ -111,6 +111,7 @@ function drawGlyphs(ctx, m, layer) {
  */
 export async function renderTextLayer(canvas, layer) {
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   await document.fonts.load(fontSpec(layer));

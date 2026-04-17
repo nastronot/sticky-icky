@@ -75,6 +75,7 @@ function drawFittedGlyphs(ctx, fit, W, H, hAlign, letterSpacing, smallCaps) {
 /** Paint background + fitted text on canvas, with optional pattern fill. */
 function drawText(canvas, displayText, originalText, font, bold, italic, smallCaps, hAlign, vAlign, letterSpacing, invert, fillPattern) {
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
   const W = canvas.width;
   const H = canvas.height;
   ctx.clearRect(0, 0, W, H);

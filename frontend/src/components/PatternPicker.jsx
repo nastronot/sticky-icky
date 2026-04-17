@@ -1,12 +1,13 @@
 import { useRef, useEffect } from 'react';
 import { PATTERNS, getPattern } from '../utils/patterns.js';
 
-const SWATCH_SIZE = 36;
+const SWATCH_PX = 96;
 
-/** Render a single pattern swatch onto a canvas at enlarged scale. */
+/** Render a single pattern swatch onto a canvas, tiled at 1:1 pixel scale. */
 function renderSwatch(canvas, patternId) {
   const pat = getPattern(patternId);
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
   const w = canvas.width;
   const h = canvas.height;
 
@@ -14,7 +15,7 @@ function renderSwatch(canvas, patternId) {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, w, h);
 
-  // Draw the pattern tiled at 1:1 pixel scale
+  // Tile the pattern at native resolution
   ctx.fillStyle = '#000';
   for (let py = 0; py < h; py++) {
     for (let px = 0; px < w; px++) {
@@ -48,17 +49,20 @@ function Swatch({ patternId, selected, onClick }) {
     >
       <canvas
         ref={canvasRef}
-        width={SWATCH_SIZE}
-        height={SWATCH_SIZE}
-        style={{ width: SWATCH_SIZE, height: SWATCH_SIZE, imageRendering: 'pixelated' }}
+        width={SWATCH_PX}
+        height={SWATCH_PX}
+        style={{
+          width: SWATCH_PX,
+          height: SWATCH_PX,
+          imageRendering: 'pixelated',
+        }}
       />
     </button>
   );
 }
 
 /**
- * Pattern picker — a 4×3 grid of swatches showing all built-in patterns.
- * The currently-selected pattern is highlighted.
+ * Pattern picker — a 3×4 grid of swatches showing all built-in patterns.
  */
 export default function PatternPicker({ value, onChange }) {
   return (

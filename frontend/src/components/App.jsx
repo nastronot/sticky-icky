@@ -20,9 +20,6 @@ import {
   deleteDesign as storageDeleteDesign,
   toggleFavorite as storageToggleFavorite,
   makeThumbnail,
-  autoSave,
-  loadAutoSave,
-  clearAutoSave,
   loadSetting,
   saveSetting,
 } from '../utils/storage.js';
@@ -198,7 +195,7 @@ export default function App() {
   // ── Global print settings (persisted to IndexedDB settings store) ────────
   const [darkness, setDarkness] = useState(15);
   const [speed, setSpeed] = useState(1);
-  const [xOffset, setXOffset] = useState(80);  // dots (= 10 bytes, the known-good default)
+  const [xOffset, setXOffset] = useState(10);  // dots (GW p1, the known-good default)
   const [yOffset, setYOffset] = useState(0);    // dots
   const dropdownPresets = useMemo(() => buildDropdownList(presets), [presets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
@@ -396,14 +393,7 @@ export default function App() {
     );
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8765';
-      // TEMPORARY: forward ?raw_gw_x= from the page URL to the backend
-      // for empirical GW p1 unit testing. Remove after testing.
-      const pageParams = new URLSearchParams(window.location.search);
-      const rawGwX = pageParams.get('raw_gw_x');
-      const printUrl = rawGwX != null
-        ? `${apiBase}/print?raw_gw_x=${encodeURIComponent(rawGwX)}`
-        : `${apiBase}/print`;
-      const res = await fetch(printUrl, {
+      const res = await fetch(`${apiBase}/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -686,17 +676,10 @@ export default function App() {
     }
   }, [layers, preset, customW, customH, labelW, labelH]);
 
-  // ── Async init: presets, DPI, autosave ──────────────────────────────────
-  // On mount, load presets and screen DPI from IndexedDB, then check for
-  // an autosaved snapshot and offer to restore it. Until this one-shot
-  // init completes, the autosave effect short-circuits so the default
-  // initial layers don't immediately overwrite the snapshot.
-  const autosaveReadyRef = useRef(false);
-
+  // ── Async init: presets, DPI, global settings ──────────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // 1. Load presets + DPI from IndexedDB.
       let loadedPresets = [];
       try {
         loadedPresets = await loadPresets();
@@ -709,11 +692,23 @@ export default function App() {
       } catch (err) {
         console.warn('Failed to load screen DPI:', err);
       }
-      // Load global print settings from IndexedDB.
       const loadedDarkness = await loadSetting('darkness');
       const loadedSpeed = await loadSetting('speed');
-      const loadedXOffset = await loadSetting('xOffset');
+      let loadedXOffset = await loadSetting('xOffset');
       const loadedYOffset = await loadSetting('yOffset');
+
+      // One-time migration: xOffset was stored under the old broken pipeline
+      // where the value was divided by 8 before reaching GW. Now GW receives
+      // xOffset directly (dots). Existing stored values like 80 need to
+      // become 10 (80 / 8 = 10).
+      const xOffsetMigrated = await loadSetting('xOffset_v2_migrated');
+      if (!xOffsetMigrated && loadedXOffset !== null && loadedXOffset > 40) {
+        loadedXOffset = Math.round(loadedXOffset / 8);
+        await saveSetting('xOffset', loadedXOffset);
+      }
+      if (!xOffsetMigrated) {
+        await saveSetting('xOffset_v2_migrated', true);
+      }
 
       if (cancelled) return;
       setPresets(loadedPresets);
@@ -722,67 +717,9 @@ export default function App() {
       if (loadedSpeed !== null) setSpeed(loadedSpeed);
       if (loadedXOffset !== null) setXOffset(loadedXOffset);
       if (loadedYOffset !== null) setYOffset(loadedYOffset);
-
-      // Build dropdown from loaded presets for deserializeDesign.
-      const ddPresets = buildDropdownList(loadedPresets);
-
-      // 2. Check for autosaved snapshot.
-      let snap = null;
-      try {
-        snap = await loadAutoSave();
-      } catch (err) {
-        console.warn('Failed to read autosave:', err);
-      }
-      if (cancelled) return;
-      if (snap && window.confirm('Restore last session?')) {
-        try {
-          const restored = await deserializeDesign(snap, ddPresets);
-          if (cancelled) return;
-          suppressNextHistoryRef.current = true;
-          setLayers(restored.layers);
-          setSelectedLayerId(restored.layers[0]?.id ?? null);
-          if (typeof restored.presetIdx === 'number') setPresetIdx(restored.presetIdx);
-          if (typeof restored.customW === 'number') setCustomW(restored.customW);
-          if (typeof restored.customH === 'number') setCustomH(restored.customH);
-        } catch (err) {
-          console.error('Autosave restore failed:', err);
-          await clearAutoSave();
-        }
-      } else if (snap) {
-        await clearAutoSave();
-      }
-      if (!cancelled) autosaveReadyRef.current = true;
     })();
     return () => { cancelled = true; };
-    // run once on mount; the closures intentionally read state at the time
-    // of resolution rather than tracking it via deps.
   }, []);
-
-  // Debounced autosave on any state change. Skip until the mount-time
-  // restore check has resolved so we don't clobber the saved snapshot.
-  useEffect(() => {
-    if (!autosaveReadyRef.current) return;
-    const handle = setTimeout(() => {
-      try {
-        const snap = serializeDesign({
-          name: 'autosave',
-          layers,
-          presetId: preset.id,
-          customW,
-          customH,
-          labelW,
-          labelH,
-          thumbnail: null,
-        });
-        // Fire-and-forget — autoSave swallows its own errors and an
-        // unhandled rejection here would just be noise.
-        autoSave(snap);
-      } catch (err) {
-        console.warn('Autosave failed:', err);
-      }
-    }, 2000);
-    return () => clearTimeout(handle);
-  }, [layers, preset, customW, customH, labelW, labelH]);
 
   // ── Paste image from clipboard ────────────────────────────────────────────
   // Document-level paste listener. Skips when focus is on a text input so the

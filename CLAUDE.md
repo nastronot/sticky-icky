@@ -68,21 +68,22 @@ The backend assembles and sends this to the printer over serial:
 
 ```
 \r\n                                       — wake / line sync
+D{darkness}\r\n                            — print darkness (0–15)  ← config commands BEFORE N
+S{speed}\r\n                               — print speed (1–4)     ← (EPL2 manual p. 120)
 N\r\n                                      — clear image buffer
 q{width}\r\n                               — label width in dots (= padded bitmap width)
 Q{labelH},21\r\n                           — label height in dots + 21-dot inter-label gap
-D{darkness}\r\n                            — print darkness (0–15)
-S{speed}\r\n                               — print speed (1–4)
-GW{xOffset//8},{yOffset},{width_bytes},{height}\r\n  — Direct Graphic Write
+GW{xOffset},{yOffset},{width_bytes},{height}\r\n  — Direct Graphic Write
 {raw inverted bitmap bytes}                — width_bytes × height bytes, NO separator
 P{copies}\r\n                              — print N copies
 ```
 
 Notes:
+- **Command ordering**: D and S are "Stored" configuration commands (EPL2 manual p. 38) and must appear before N per manual p. 120: "All printer configuration commands should be issued prior to issuing the N command."
 - The `q` command receives the *padded* bitmap width, not the user-facing label width — the printer expects q to match the byte count GW will stream.
-- `GW` X/Y offset: the API accepts `xOffset` and `yOffset` in **dots** (both fields). The backend converts xOffset from dots to bytes (`xOffset // 8`) for the GW command's p1 parameter. xOffset must be a multiple of 8. Default is 80 dots (= 10 bytes), which is the empirically calibrated value for the current label stock + guides.
+- **GW p1 and p2 are both in dots** (confirmed empirically and per EPL2 Programming Guide p. 108). xOffset and yOffset are passed directly to GW without conversion. Default xOffset=10 dots, yOffset=0 dots. The old code incorrectly treated p1 as bytes and divided by 8 — this was fixed after empirical testing confirmed the manual is correct.
 - Darkness and speed are **global settings** (not per-preset). Default D15 S1. Editable in the Settings modal (gear icon in the View button group).
-- **yOffset caveat**: the current rendering pipeline always sizes the bitmap to exactly `labelH` dots tall, so yOffset has no visible effect unless the pipeline changes to produce shorter bitmaps. The field is kept for future calibration use.
+- **yOffset caveat**: the current rendering pipeline always sizes the bitmap to exactly `labelH` dots tall, so yOffset has no visible effect unless the pipeline changes to produce shorter bitmaps.
 
 ### GW bit polarity
 
@@ -133,8 +134,7 @@ Both apps are containerized and deployed to a Synology NAS.
 - **Canvas interaction**: drag, 8 resize handles (corners + edges), rotation handle, shift inverts the layer's `lockAspect` for the drag, shift snaps rotation to 45°. Pointer math handles viewport rotation.
 - **Compositing**: XOR (default) — overlapping black flips to white. Per-layer toggle for solid overwrite mode.
 - **Image crop**: per-image crop mode with draggable green crop rectangle, Apply replaces the layer's `originalImage` with the cropped slice.
-- **Save / load**: full design state to IndexedDB (`sticky_zebra` db, `designs` + `autosave` stores). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout. Designs reference their label stock by `presetId` (stable across reorder/delete); legacy designs that stored `presetIdx` are migrated on load.
-- **Autosave**: 350 ms-debounced burst-coalesced snapshot to the `autosave` store on every layer mutation; mount-time prompt to restore if a snapshot exists.
+- **Save / load**: full design state to IndexedDB (`sticky_zebra` db, `designs` store). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout. Designs reference their label stock by `presetId` (stable across reorder/delete); legacy designs that stored `presetIdx` are migrated on load.
 - **Undo / redo**: 20-entry history with the same 350 ms burst coalescing. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y.
 - **Keyboard shortcuts**: arrow nudge (1 px / 10 px with shift), Delete to remove layer, Escape to deselect, Ctrl+D to duplicate, Ctrl+V to paste image from clipboard.
 - **Drag-and-drop image files** anywhere in the studio.
@@ -154,7 +154,7 @@ Both apps are containerized and deployed to a Synology NAS.
 | Canvas        | HTML5 Canvas API (no Konva — that's spec leftovers) |
 | Icons         | lucide-react                                        |
 | Dithering     | Hand-rolled in `src/utils/dither.js`                |
-| Storage       | IndexedDB (`sticky_zebra` db v2) — designs, autosave, presets, settings |
+| Storage       | IndexedDB (`sticky_zebra` db v2) — designs, presets, settings |
 | Backend       | FastAPI + pyserial                                  |
 | Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1, rtscts=True)` |
 
@@ -207,8 +207,8 @@ sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill 
 
 - **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (it produces blank labels). Serial is the *only* working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code; the LO-command fallback is gone.
 - **Baud rate is 38400** — the maximum reliable speed for this printer. 57600+ produces dropped bytes and partial labels. 9600 also works but is unnecessarily slow for full-page bitmaps.
-- **GW offset is global**: `GW{xOffset//8},{yOffset}` — the API and UI use dots for both offsets. The backend converts xOffset from dots to bytes (`// 8`) for the GW command. Default xOffset=80 dots (= 10 bytes), yOffset=0. xOffset must be a multiple of 8 dots. These are global settings edited in the Settings modal, not per-preset.
-- **GW offset units fixed**: Phase 1 stored xOffset in bytes (default 8) and passed it directly to GW. This was confusing (mixed units) and the default was wrong (8 bytes instead of the known-good 10 bytes = 80 dots). Now everything is in dots, the backend converts at the last moment, and the default matches the original hardcoded `GW10,0`.
+- **GW p1 is in dots, not bytes**: empirically confirmed via test prints at `GW10,0` vs `GW80,0`. The 2007 EPL2 Programming Guide p. 108 is correct: p1 is "Horizontal start position (X) in dots." The backend passes `req.xOffset` directly to GW without conversion. Default xOffset=10 dots, yOffset=0. No multiple-of-8 constraint on xOffset.
+- **GW offset history**: the original hardcoded `GW10,0` was 10 *dots* (not 10 bytes as previously assumed). Phase 1 introduced a `// 8` conversion that was wrong — it was dividing dots by 8, turning 80 into 10 and accidentally producing the right result. The conversion has been removed. Existing users' stored xOffset values > 40 are migrated by dividing by 8 (one-time, keyed on `xOffset_v2_migrated` flag in settings).
 - **`q` matches the bitmap width**, not `labelW`. The bitmap width is padded to the next multiple of 8 by the frontend; the `q` command must match what `GW` actually streams.
 - **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. Default global settings are `D15 S1` which is reliable for the dense raster art this app produces. Editable in the Settings modal.
 - **yOffset is inert given current pipeline**: the bitmap is always sized to exactly `labelH` dots, so yOffset has no effect. The field exists for future calibration features that may produce shorter bitmaps.

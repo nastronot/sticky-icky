@@ -10,11 +10,11 @@
  * @param {number} darkness - EPL2 D command value, 0–15
  * @param {number} speed - EPL2 S command value, 1–4
  * @param {number} copies - EPL2 P command value, 1–99
- * @param {number} xOffset - GW X offset in dots (must be multiple of 8), default 80
- * @param {number} yOffset - GW Y offset in dots, default 0
+ * @param {number} xOffset - GW p1: horizontal start position in dots, default 10
+ * @param {number} yOffset - GW p2: vertical start position in dots, default 0
  * @returns {{ bitmap: string, width: number, height: number, labelW: number, labelH: number, darkness: number, speed: number, copies: number, xOffset: number, yOffset: number }}
  */
-export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1, copies = 1, xOffset = 80, yOffset = 0) {
+export function encodePrintPayload(imageData, width, height, labelW, labelH, darkness = 12, speed = 1, copies = 1, xOffset = 10, yOffset = 0) {
   const paddedWidth = Math.ceil(width / 8) * 8;
   const widthBytes = paddedWidth / 8;
 

@@ -4,7 +4,7 @@ import re
 import time
 
 import serial
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter
@@ -55,8 +55,8 @@ class PrintRequest(BaseModel):
     darkness: int = Field(default=12, ge=0, le=15)  # EPL2 D command (0–15)
     speed: int = Field(default=1, ge=1, le=4)       # EPL2 S command (1–4)
     copies: int = Field(default=1, ge=1, le=99)     # EPL2 P command (1–99)
-    xOffset: int = Field(default=80, ge=0, le=MAX_DOTS)   # GW X offset in dots (converted to bytes internally)
-    yOffset: int = Field(default=0, ge=0, le=MAX_DOTS)   # GW Y offset in dots
+    xOffset: int = Field(default=10, ge=0, le=MAX_DOTS)   # GW p1: horizontal start position in dots
+    yOffset: int = Field(default=0, ge=0, le=MAX_DOTS)   # GW p2: vertical start position in dots
 
 
 @app.get("/health")
@@ -66,15 +66,7 @@ async def health():
 
 @app.post("/print")
 @limiter.limit("10/minute")
-async def print_label(
-    request: Request,
-    req: PrintRequest,
-    raw_gw_x: int | None = Query(
-        default=None,
-        description="TEMPORARY: override GW p1 value for unit testing. "
-                    "Bypasses xOffset conversion. Remove after testing.",
-    ),
-):
+async def print_label(request: Request, req: PrintRequest):
     if req.width % 8 != 0:
         raise HTTPException(
             status_code=400,
@@ -94,20 +86,6 @@ async def print_label(
             detail=f"Bitmap size mismatch: got {len(bitmap_bytes)}, expected {expected_size}",
         )
 
-    # xOffset arrives in dots; GW p1 unit is under investigation (manual
-    # says dots, production code assumed bytes). Convert for now, but allow
-    # raw_gw_x query param to override for empirical testing.
-    x_offset_bytes = req.xOffset // 8
-    if req.xOffset % 8 != 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"xOffset must be a multiple of 8 (got {req.xOffset})",
-        )
-
-    # TEMPORARY: allow raw override of GW p1 for unit testing.
-    # Usage: POST /print?raw_gw_x=10  or  POST /print?raw_gw_x=80
-    gw_x = raw_gw_x if raw_gw_x is not None else x_offset_bytes
-
     # GW expects 0=black, 1=white. Frontend packs 1=black, 0=white. Invert.
     inverted = bytes(b ^ 0xFF for b in bitmap_bytes)
 
@@ -121,7 +99,7 @@ async def print_label(
         "N\r\n"
         f"q{req.width}\r\n"
         f"Q{req.labelH},21\r\n"
-        f"GW{gw_x},{req.yOffset},{width_bytes},{req.height}\r\n"
+        f"GW{req.xOffset},{req.yOffset},{width_bytes},{req.height}\r\n"
     ).encode("ascii")
     footer = f"P{req.copies}\r\n".encode("ascii")
     payload_bytes = header + inverted + footer

@@ -99,15 +99,15 @@ export default function Settings({
             <div className="settings-grid">
               <label className="settings-field">
                 <span className="settings-label">X offset</span>
-                <span className="settings-hint">{xOffset} dots ({xOffset / 8} bytes) from left edge</span>
+                <span className="settings-hint">{xOffset} dots from left edge</span>
                 <input
                   type="number"
                   min={0}
                   max={832}
-                  step={8}
+                  step={1}
                   value={xOffset}
                   onChange={e => {
-                    const v = Math.max(0, Math.min(832, Math.round(Number(e.target.value) / 8) * 8));
+                    const v = Math.max(0, Math.min(832, Number(e.target.value) || 0));
                     onChangeXOffset(v);
                   }}
                 />

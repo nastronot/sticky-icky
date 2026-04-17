@@ -1,11 +1,11 @@
-// IndexedDB-backed storage for designs, autosave, label-stock presets, and
-// app settings (screen DPI, etc.).
+// IndexedDB-backed storage for designs, label-size presets, and app settings
+// (screen DPI, print settings, etc.).
 //
 // Schema (version 2):
 //   db: "sticky_zebra"
 //     designs  — keyPath "id"          — every saved design
-//     autosave — no keyPath, single record at key "current"
-//     presets  — keyPath "id"          — label-stock presets
+//     autosave — (legacy, unused)      — kept to avoid a version bump
+//     presets  — keyPath "id"          — label-size presets
 //     settings — no keyPath, keyed by setting name (e.g. "screenDPI")
 //
 // Version 1→2 migration adds the presets and settings stores and pulls in
@@ -19,11 +19,9 @@ const STORE_DESIGNS = 'designs';
 const STORE_AUTOSAVE = 'autosave';
 const STORE_PRESETS = 'presets';
 const STORE_SETTINGS = 'settings';
-const AUTOSAVE_KEY = 'current';
 
 // Legacy localStorage keys — read once during migration, then deleted.
 const LEGACY_DESIGNS_KEY = 'thermal_designs';
-const LEGACY_AUTOSAVE_KEY = 'thermal_autosave';
 const LEGACY_PRESETS_KEY_V2 = 'thermal_label_presets_v2';
 const LEGACY_PRESETS_KEY_V1 = 'thermal_label_presets';
 const LEGACY_DPI_KEY = 'thermal_screen_dpi';
@@ -141,17 +139,6 @@ async function migrateFromLocalStorage(db) {
       console.warn('Failed to parse legacy designs:', err);
     }
     localStorage.removeItem(LEGACY_DESIGNS_KEY);
-  }
-
-  const oldAutosaveRaw = localStorage.getItem(LEGACY_AUTOSAVE_KEY);
-  if (oldAutosaveRaw) {
-    try {
-      const snap = JSON.parse(oldAutosaveRaw);
-      if (snap) await putRaw(STORE_AUTOSAVE, snap, AUTOSAVE_KEY);
-    } catch (err) {
-      console.warn('Failed to parse legacy autosave:', err);
-    }
-    localStorage.removeItem(LEGACY_AUTOSAVE_KEY);
   }
 
   // ── v2 migration: presets from localStorage → IndexedDB ──
@@ -368,35 +355,6 @@ export function makeThumbnail(srcCanvas, maxWidth = 150) {
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(srcCanvas, 0, 0, w, h);
   return c.toDataURL('image/jpeg', 0.6);
-}
-
-// ── Autosave ──────────────────────────────────────────────────────────────────
-
-export async function autoSave(snapshot) {
-  try {
-    await dbPut(STORE_AUTOSAVE, snapshot, AUTOSAVE_KEY);
-  } catch (err) {
-    // Best-effort: a quota error or transient transaction failure shouldn't
-    // throw out into the React effect.
-    console.warn('Autosave write failed:', err);
-  }
-}
-
-export async function loadAutoSave() {
-  try {
-    const snap = await dbGet(STORE_AUTOSAVE, AUTOSAVE_KEY);
-    return snap ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export async function clearAutoSave() {
-  try {
-    await dbDelete(STORE_AUTOSAVE, AUTOSAVE_KEY);
-  } catch {
-    /* ignore */
-  }
 }
 
 // ── Presets (label stocks) ────────────────────────────────────────────────────

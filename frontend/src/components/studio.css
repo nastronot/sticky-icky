@@ -1346,40 +1346,90 @@
   font-weight: 600;
 }
 
-/* Pattern picker ============================================================ */
+/* Pattern picker dropdown =================================================== */
 
-.pattern-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+.pattern-dropdown {
+  position: relative;
 }
 
-.pattern-swatch {
-  width: 100%;
-  padding: 3px;
-  background: var(--bg-control);
-  border: 2px solid var(--border-faint);
-  border-radius: 4px;
-  cursor: pointer;
+.pattern-trigger {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
-.pattern-swatch:hover {
+.pattern-trigger:hover {
   border-color: var(--border);
 }
 
-.pattern-swatch.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-glow);
+.pattern-trigger-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.pattern-swatch canvas {
-  display: block;
-  border-radius: 2px;
+.pattern-trigger-chevron {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.pattern-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.pattern-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  height: auto;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pattern-option:hover {
+  background: var(--bg-control-hover);
+}
+
+.pattern-option.selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pattern-swatch-canvas {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1px solid var(--border-faint);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }

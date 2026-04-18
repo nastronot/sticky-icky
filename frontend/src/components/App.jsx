@@ -112,28 +112,51 @@ function makeTextLayer(labelW, labelH) {
   };
 }
 
-let fillSeq = 0;
-function makeFillLayer(labelW, labelH) {
-  const n = ++fillSeq;
-  return {
-    id: `fill-${Date.now()}-${n}`,
-    type: 'fill',
-    name: `Fill ${n}`,
+let shapeSeq = 0;
+const SHAPE_KIND_LABELS = {
+  rectangle: 'Rectangle',
+  ellipse:   'Ellipse',
+  polygon:   'Polygon',
+  star:      'Star',
+  line:      'Line',
+};
+function makeShapeLayer(kind, labelW, labelH) {
+  const n = ++shapeSeq;
+  const base = {
+    id: `shape-${Date.now()}-${n}`,
+    type: 'shape',
+    shapeKind: kind,
+    name: `${SHAPE_KIND_LABELS[kind] ?? 'Shape'} ${n}`,
     visible: true,
-    x: 0,
-    y: 0,
-    width: labelW,
-    height: labelH,
-    rotation: 0,
-    flipH: false,
-    flipV: false,
-    color: 'black',
     fillPattern: 'default-solid',
     invert: false,
     xor: true,
     ditherAlgo: 'none',
     ditherAmount: 50,
   };
+  if (kind === 'line') {
+    // Horizontal line across the middle third of the canvas.
+    const y = Math.round(labelH / 2);
+    const xStart = Math.round(labelW / 3);
+    const xEnd   = Math.round((labelW / 3) * 2);
+    return { ...base, x1: xStart, y1: y, x2: xEnd, y2: y, thickness: 2 };
+  }
+  // Rectangle / ellipse default to 200×200; polygon / star default to the
+  // equivalent 200×200 bbox (radius 100).
+  const defaultSize = kind === 'rectangle' || kind === 'ellipse' ? 200 : 200;
+  const w = Math.min(defaultSize, labelW);
+  const h = Math.min(defaultSize, labelH);
+  const bbox = {
+    ...base,
+    x: Math.round((labelW - w) / 2),
+    y: Math.round((labelH - h) / 2),
+    width: w,
+    height: h,
+    rotation: 0,
+  };
+  if (kind === 'polygon') return { ...bbox, sides: 6 };
+  if (kind === 'star')    return { ...bbox, points: 5, innerRadiusRatio: 0.4 };
+  return bbox;
 }
 
 let imageSeq = 0;
@@ -350,8 +373,8 @@ export default function App() {
     setSelectedLayerId(layer.id);
   }, [labelW, labelH]);
 
-  const addFill = useCallback(() => {
-    const layer = makeFillLayer(labelW, labelH);
+  const addShape = useCallback((kind) => {
+    const layer = makeShapeLayer(kind, labelW, labelH);
     setLayers(ls => [...ls, layer]);
     setSelectedLayerId(layer.id);
   }, [labelW, labelH]);
@@ -1182,7 +1205,7 @@ export default function App() {
         onAddBigText={addBigText}
         onAddText={addText}
         onAddImage={addImage}
-        onAddFill={addFill}
+        onAddShape={addShape}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}
         onDuplicate={duplicateLayer}

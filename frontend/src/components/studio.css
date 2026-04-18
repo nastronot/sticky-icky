@@ -560,6 +560,38 @@
   letter-spacing: 0.05em;
 }
 
+/* Row of five equal-width icon-only shape buttons. The icons need to breathe
+   so a slightly taller row reads as a grouped "shape picker". */
+.layer-add-shape-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.layer-add-shape-row button {
+  padding: 5px 0;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+}
+
+.layer-add-shape-row button:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.shape-kind-label {
+  color: var(--text);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
 /* Add Layer buttons — primary action style (yellow on black) since
    they're the entry point to creating new layers. */
 .layer-add .btn-group button {

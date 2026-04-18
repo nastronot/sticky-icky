@@ -185,8 +185,8 @@ export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, 
         <span>Rotation <em>{Math.round(layer.rotation)}°</em></span>
         <input
           type="range"
-          min={0}
-          max={360}
+          min={-180}
+          max={180}
           step={1}
           value={layer.rotation}
           onChange={e => set({ rotation: Number(e.target.value) })}

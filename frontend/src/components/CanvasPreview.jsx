@@ -3,7 +3,9 @@ import { renderBigTextLayer } from '../utils/renderBigText.js';
 import { renderImageLayer, makeDitherCache, pruneDitherCache } from '../utils/renderImage.js';
 import { renderTextLayer } from '../utils/renderText.js';
 import { renderFillLayer } from '../utils/renderFill.js';
+import { renderShapeLayer, lineCornerPoints } from '../utils/renderShape.js';
 import { xorComposite } from '../utils/composite.js';
+import { normalizeRotation } from '../utils/rotation.js';
 
 // Visual sizing for selection chrome (canvas pixel space — scaled with the
 // rest of the canvas via displayScale).
@@ -166,6 +168,8 @@ const CanvasPreview = forwardRef(function CanvasPreview(
           renderImageLayer(off, layer, ditherCache);
         } else if (layer.type === 'fill') {
           renderFillLayer(off, layer);
+        } else if (layer.type === 'shape') {
+          renderShapeLayer(off, layer);
         } else if (layer.type === 'text') {
           const measured = await renderTextLayer(off, layer);
           if (cancelled) return;
@@ -200,7 +204,10 @@ const CanvasPreview = forwardRef(function CanvasPreview(
           }
         } else {
           const sel = layers.find(l => l.id === selectedLayerId);
-          if ((sel?.type === 'image' || sel?.type === 'text' || sel?.type === 'fill') && sel.visible) drawSelectionChrome(octx, sel);
+          if (sel?.visible) {
+            if (isLineShape(sel)) drawLineSelectionChrome(octx, sel);
+            else if (isBBoxInteractable(sel)) drawSelectionChrome(octx, sel);
+          }
         }
       }
     })();
@@ -270,11 +277,16 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         return;
       }
 
-      // 1. If a handle on the currently-selected image/text/fill layer was
-      //    hit, start that interaction immediately (handles often poke
-      //    outside the body).
+      // 1. If a handle on the currently-selected layer was hit, start that
+      //    interaction immediately (handles poke outside the body).
       const selected = ls.find(l => l.id === selectedId);
-      if ((selected?.type === 'image' || selected?.type === 'text' || selected?.type === 'fill') && selected.visible) {
+      if (selected?.visible && isLineShape(selected)) {
+        const ep = hitLineEndpoint(pt, selected);
+        if (ep) {
+          beginInteraction(overlay, e, { mode: 'line-endpoint', layer: selected, start: pt, endpoint: ep });
+          return;
+        }
+      } else if (isBBoxInteractable(selected) && selected.visible) {
         const handle = hitHandle(pt, selected);
         if (handle === 'rotate') {
           beginInteraction(overlay, e, { mode: 'rotate', layer: selected, start: pt });
@@ -286,12 +298,20 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         }
       }
 
-      // 2. Hit-test all visible image / text / fill layers top-to-bottom
-      //    for a body click.
+      // 2. Hit-test all visible interactable layers top-to-bottom for a
+      //    body click.
       for (let i = ls.length - 1; i >= 0; i--) {
         const layer = ls[i];
         if (!layer.visible) continue;
-        if (layer.type !== 'image' && layer.type !== 'text' && layer.type !== 'fill') continue;
+        if (isLineShape(layer)) {
+          if (hitLineBody(pt, layer)) {
+            if (layer.id !== selectedId) onSelectLayer(layer.id);
+            beginInteraction(overlay, e, { mode: 'move-line', layer, start: pt });
+            return;
+          }
+          continue;
+        }
+        if (!isBBoxInteractable(layer)) continue;
         if (hitBody(pt, layer)) {
           if (layer.id !== selectedId) onSelectLayer(layer.id);
           beginInteraction(overlay, e, { mode: 'move', layer, start: pt });
@@ -348,6 +368,21 @@ const CanvasPreview = forwardRef(function CanvasPreview(
 
       const layer = ix.layer;
 
+      if (ix.mode === 'move-line') {
+        onPatchLayer(layer.id, {
+          x1: layer.x1 + dx, y1: layer.y1 + dy,
+          x2: layer.x2 + dx, y2: layer.y2 + dy,
+        });
+        return;
+      }
+      if (ix.mode === 'line-endpoint') {
+        const patch = ix.endpoint === 1
+          ? { x1: layer.x1 + dx, y1: layer.y1 + dy }
+          : { x2: layer.x2 + dx, y2: layer.y2 + dy };
+        onPatchLayer(layer.id, patch);
+        return;
+      }
+
       if (ix.mode === 'move') {
         onPatchLayer(layer.id, { x: layer.x + dx, y: layer.y + dy });
       } else if (ix.mode === 'resize') {
@@ -377,12 +412,11 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         const cx = layer.x + layer.width / 2;
         const cy = layer.y + layer.height / 2;
         const ang = (Math.atan2(pt.y - cy, pt.x - cx) * 180) / Math.PI + 90;
-        let norm = ((Math.round(ang) % 360) + 360) % 360;
-        // Shift snaps to 45° increments (0, 45, 90, 135, 180, 225, 270, 315).
-        if (e.shiftKey) {
-          norm = (Math.round(norm / 45) * 45) % 360;
-        }
-        onPatchLayer(layer.id, { rotation: norm });
+        let deg = Math.round(ang);
+        // Shift snaps to 45° increments before the range fold so snaps are
+        // stable regardless of which sweep the user came from.
+        if (e.shiftKey) deg = Math.round(deg / 45) * 45;
+        onPatchLayer(layer.id, { rotation: normalizeRotation(deg) });
       }
     };
 
@@ -474,6 +508,46 @@ const CanvasPreview = forwardRef(function CanvasPreview(
 export default CanvasPreview;
 
 // ── Geometry helpers ────────────────────────────────────────────────────────
+
+/** Bounding-box-interactable layers: those with an {x, y, width, height,
+ *  rotation} coordinate frame driving the selection chrome and resize
+ *  handles. Image, Text, legacy Fill, and every shape kind except 'line'. */
+function isBBoxInteractable(layer) {
+  if (!layer) return false;
+  if (layer.type === 'image' || layer.type === 'text' || layer.type === 'fill') return true;
+  if (layer.type === 'shape' && layer.shapeKind !== 'line') return true;
+  return false;
+}
+
+function isLineShape(layer) {
+  return layer?.type === 'shape' && layer.shapeKind === 'line';
+}
+
+/** Line endpoint hit-test. Returns 1 for the start, 2 for the end, or null. */
+function hitLineEndpoint(pt, layer) {
+  const r = HANDLE_SIZE / 2 + HANDLE_HIT_PAD;
+  if (Math.abs(pt.x - layer.x1) <= r && Math.abs(pt.y - layer.y1) <= r) return 1;
+  if (Math.abs(pt.x - layer.x2) <= r && Math.abs(pt.y - layer.y2) <= r) return 2;
+  return null;
+}
+
+/** Distance from a point to a line segment. */
+function distToSegment(pt, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(pt.x - ax, pt.y - ay);
+  let t = ((pt.x - ax) * dx + (pt.y - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const px = ax + t * dx;
+  const py = ay + t * dy;
+  return Math.hypot(pt.x - px, pt.y - py);
+}
+
+function hitLineBody(pt, layer) {
+  const pad = (layer.thickness ?? 2) / 2 + HANDLE_HIT_PAD;
+  return distToSegment(pt, layer.x1, layer.y1, layer.x2, layer.y2) <= pad;
+}
 
 /** Convert a canvas-space point into the layer's local (un-rotated, centered)
  *  coordinate system. */
@@ -667,6 +741,36 @@ function drawCropChrome(ctx, layer, imageRect) {
 }
 
 // ── Selection chrome ────────────────────────────────────────────────────────
+
+/** Selection chrome for a line-shape layer: a faint outline along the line
+ *  and filled handles at both endpoints. No rotation / bounding-box chrome,
+ *  since geometry is fully described by two points + thickness. */
+function drawLineSelectionChrome(ctx, layer) {
+  const corners = lineCornerPoints(layer.x1, layer.y1, layer.x2, layer.y2, Math.max(1, layer.thickness ?? 2));
+
+  ctx.save();
+  ctx.strokeStyle = '#FED00A';
+  ctx.lineWidth = 1;
+
+  if (corners) {
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i].x, corners[i].y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle = '#ffffff';
+  for (const [px, py] of [[layer.x1, layer.y1], [layer.x2, layer.y2]]) {
+    ctx.beginPath();
+    ctx.rect(px - HANDLE_SIZE / 2, py - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 
 function drawSelectionChrome(ctx, layer) {
   const cx = layer.x + layer.width / 2;

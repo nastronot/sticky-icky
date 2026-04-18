@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
   RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
-  Maximize2, Minimize2, Settings2, Square, Pencil,
+  Maximize2, Minimize2, Settings2, Square, Circle, Hexagon,
+  Star, Minus, Pencil,
 } from 'lucide-react';
 
 /** Right-sidebar layer list and global controls. The top section hosts the
@@ -15,7 +16,7 @@ export default function LayerPanel({
   onAddBigText,
   onAddText,
   onAddImage,
-  onAddFill,
+  onAddShape,
   onToggleVisibility,
   onDelete,
   onDuplicate,
@@ -163,7 +164,38 @@ export default function LayerPanel({
           <button type="button" onClick={onAddBigText}><Plus size={14} /> Big Text</button>
           <button type="button" onClick={onAddText}><Plus size={14} /> Text</button>
           <button type="button" onClick={handleAddImageClick}><Plus size={14} /> Image</button>
-          <button type="button" onClick={onAddFill}><Square size={14} /> Fill</button>
+        </div>
+        <div className="layer-add-shape-row">
+          <button
+            type="button"
+            onClick={() => onAddShape('rectangle')}
+            title="Rectangle"
+            aria-label="Add rectangle"
+          ><Square size={14} /></button>
+          <button
+            type="button"
+            onClick={() => onAddShape('ellipse')}
+            title="Ellipse"
+            aria-label="Add ellipse"
+          ><Circle size={14} /></button>
+          <button
+            type="button"
+            onClick={() => onAddShape('polygon')}
+            title="Polygon"
+            aria-label="Add polygon"
+          ><Hexagon size={14} /></button>
+          <button
+            type="button"
+            onClick={() => onAddShape('star')}
+            title="Star"
+            aria-label="Add star"
+          ><Star size={14} /></button>
+          <button
+            type="button"
+            onClick={() => onAddShape('line')}
+            title="Line"
+            aria-label="Add line"
+          ><Minus size={14} /></button>
         </div>
         <input
           ref={fileInputRef}

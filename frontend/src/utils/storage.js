@@ -16,6 +16,7 @@
 // v1 is preserved for users who never opened v1.
 
 import { mapLegacyPatternId } from './patterns.js';
+import { normalizeRotation } from './rotation.js';
 
 const DB_NAME = 'sticky_zebra';
 const DB_VERSION = 3;
@@ -247,21 +248,32 @@ function serializeLayer(layer) {
 }
 
 async function deserializeLayer(l) {
-  // Migrate legacy pattern IDs ("solid", "waves", …) to the new default-*
-  // namespace. Unknown IDs — including references to custom patterns that
-  // the user has since deleted — collapse silently to default-solid at
-  // render time via getPattern's fallback, so layers render as plain black
-  // instead of erroring.
-  const mapped = l.fillPattern != null
+  // Legacy pattern-id shim: "solid"/"waves"/… → "default-solid"/"default-waves".
+  // Unknown ids — including custom patterns the user has since deleted —
+  // collapse to default-solid at render time via getPattern's fallback.
+  let mapped = l.fillPattern != null
     ? { ...l, fillPattern: mapLegacyPatternId(l.fillPattern) }
-    : l;
+    : { ...l };
+
+  // Fill-layer consolidation: any layer stored as type:"fill" becomes
+  // shape/rectangle on load. Stored records stay untouched (rewrite happens
+  // on next save) so this is a pure load-time shim.
+  if (mapped.type === 'fill') {
+    mapped = { ...mapped, type: 'shape', shapeKind: 'rectangle' };
+  }
+
+  // Normalize any rotation-bearing layer into the -180..+180 slider range.
+  if (typeof mapped.rotation === 'number') {
+    mapped = { ...mapped, rotation: normalizeRotation(mapped.rotation) };
+  }
+
   if (mapped.type === 'image' && mapped.originalImageDataURL) {
     const originalImage = await dataURLToImageData(mapped.originalImageDataURL);
     // Strip the data URL field — it's been hydrated into ImageData now.
     const { originalImageDataURL: _stripped, ...rest } = mapped;
     return { ...rest, originalImage };
   }
-  return { ...mapped };
+  return mapped;
 }
 
 // ── Whole-design serialize / deserialize ──────────────────────────────────────

@@ -96,6 +96,11 @@ export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, 
   // math assumes an axis-aligned image.
   const cropDisabled = layer.rotation !== 0 || layer.flipH || layer.flipV;
 
+  // When Threshold mode is active (auto or manual) the downstream dither
+  // step is skipped. Dim the dither + brightness controls to make that
+  // behaviour visible instead of silently ignoring them.
+  const thresholdActive = (layer.thresholdMode ?? 'off') !== 'off';
+
   return (
     <>
       <div className="control-group">
@@ -231,40 +236,143 @@ export default function ImageControls({ layer, onChange, cropMode, onEnterCrop, 
         </div>
       </div>
 
-      <label className="control-group">
-        <span>Brightness <em>{layer.threshold}</em></span>
-        <input
-          type="range"
-          min={0}
-          max={255}
-          step={1}
-          value={layer.threshold}
-          onChange={e => set({ threshold: Number(e.target.value) })}
-        />
-      </label>
+      {/* ── Processing pipeline ─────────────────────────────────────────
+          Order applied to the source image: upscale → edge detect →
+          (threshold OR dither). When Threshold mode is not "off" the
+          dither step below is skipped and the brightness/dither controls
+          are disabled to make that explicit. */}
 
-      <label className="control-group">
-        <span>Dithering</span>
-        <select value={layer.ditherAlgo} onChange={e => set({ ditherAlgo: e.target.value })}>
-          {DITHER_ALGOS.map(a => (
-            <option key={a.id} value={a.id}>{a.label}</option>
-          ))}
-        </select>
-      </label>
+      <div className="control-group">
+        <span>Upscale (EPX)</span>
+        <div className="btn-group">
+          <button
+            type="button"
+            className={!layer.upscaleEnabled ? 'active' : ''}
+            onClick={() => set({ upscaleEnabled: false })}
+          >Off</button>
+          <button
+            type="button"
+            className={layer.upscaleEnabled && (layer.upscaleFactor ?? 2) === 2 ? 'active' : ''}
+            onClick={() => set({ upscaleEnabled: true, upscaleFactor: 2 })}
+          >2×</button>
+          <button
+            type="button"
+            className={layer.upscaleEnabled && (layer.upscaleFactor ?? 2) === 4 ? 'active' : ''}
+            onClick={() => set({ upscaleEnabled: true, upscaleFactor: 4 })}
+          >4×</button>
+        </div>
+      </div>
 
-      {layer.ditherAlgo !== 'none' && (
+      <div className="control-group">
+        <span>Edge detect</span>
+        <div className="btn-group">
+          <button
+            type="button"
+            className={layer.edgeEnabled ? 'active' : ''}
+            onClick={() => set({ edgeEnabled: !layer.edgeEnabled })}
+          >{layer.edgeEnabled ? 'On' : 'Off'}</button>
+        </div>
+      </div>
+
+      {layer.edgeEnabled && (
         <label className="control-group">
-          <span>Amount <em>{layer.ditherAmount}%</em></span>
+          <span>Edge strength <em>{layer.edgeStrength ?? 50}</em></span>
           <input
             type="range"
             min={0}
             max={100}
             step={1}
-            value={layer.ditherAmount}
-            onChange={e => set({ ditherAmount: Number(e.target.value) })}
+            value={layer.edgeStrength ?? 50}
+            onChange={e => set({ edgeStrength: Number(e.target.value) })}
           />
         </label>
       )}
+
+      <div className="control-group">
+        <span>Threshold</span>
+        <div className="btn-group">
+          <button
+            type="button"
+            className={(layer.thresholdMode ?? 'off') === 'off' ? 'active' : ''}
+            onClick={() => set({ thresholdMode: 'off' })}
+          >Off</button>
+          <button
+            type="button"
+            className={layer.thresholdMode === 'auto' ? 'active' : ''}
+            onClick={() => set({ thresholdMode: 'auto' })}
+          >Auto</button>
+          <button
+            type="button"
+            className={layer.thresholdMode === 'manual' ? 'active' : ''}
+            onClick={() => set({ thresholdMode: 'manual' })}
+          >Manual</button>
+        </div>
+      </div>
+
+      {layer.thresholdMode === 'manual' && (
+        <label className="control-group">
+          <span>Threshold value <em>{layer.thresholdValue ?? 128}</em></span>
+          <input
+            type="range"
+            min={0}
+            max={255}
+            step={1}
+            value={layer.thresholdValue ?? 128}
+            onChange={e => set({ thresholdValue: Number(e.target.value) })}
+          />
+        </label>
+      )}
+
+      {/* Dither + brightness below are skipped when Threshold is active.
+          Dim the whole block and prefix a note so the behaviour is obvious. */}
+      <div className={`dither-block ${thresholdActive ? 'disabled' : ''}`}>
+        {thresholdActive && (
+          <p className="empty-hint dither-disabled-hint">
+            Dither is skipped while Threshold is active.
+          </p>
+        )}
+
+        <label className="control-group">
+          <span>Brightness <em>{layer.threshold}</em></span>
+          <input
+            type="range"
+            min={0}
+            max={255}
+            step={1}
+            value={layer.threshold}
+            disabled={thresholdActive}
+            onChange={e => set({ threshold: Number(e.target.value) })}
+          />
+        </label>
+
+        <label className="control-group">
+          <span>Dithering</span>
+          <select
+            value={layer.ditherAlgo}
+            disabled={thresholdActive}
+            onChange={e => set({ ditherAlgo: e.target.value })}
+          >
+            {DITHER_ALGOS.map(a => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+        </label>
+
+        {layer.ditherAlgo !== 'none' && (
+          <label className="control-group">
+            <span>Amount <em>{layer.ditherAmount}%</em></span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={layer.ditherAmount}
+              disabled={thresholdActive}
+              onChange={e => set({ ditherAmount: Number(e.target.value) })}
+            />
+          </label>
+        )}
+      </div>
     </>
   );
 }

@@ -56,7 +56,7 @@ function formatBytes(bytes) {
  * then most-recent. Footer shows the current page indicator and the
  * IndexedDB usage / quota via navigator.storage.estimate().
  */
-export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, onImport, onClose }) {
+export default function Gallery({ designs, demoMode = false, onLoad, onDelete, onToggleFavorite, onImport, onClose }) {
   const importInputRef = useRef(null);
   const handleImportClick = () => importInputRef.current?.click();
   const handleImportFile = async (e) => {
@@ -76,13 +76,14 @@ export default function Gallery({ designs, onLoad, onDelete, onToggleFavorite, o
     }
   };
   const sorted = useMemo(() => {
-    const copy = designs.slice();
+    const filtered = demoMode ? designs.filter(d => d?.demoSafe === true) : designs;
+    const copy = filtered.slice();
     copy.sort((a, b) => {
       if (!!a.favorite !== !!b.favorite) return a.favorite ? -1 : 1;
       return (b.savedAt ?? '').localeCompare(a.savedAt ?? '');
     });
     return copy;
-  }, [designs]);
+  }, [designs, demoMode]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const [currentPage, setCurrentPage] = useState(0);

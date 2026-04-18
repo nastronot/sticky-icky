@@ -24,6 +24,7 @@ import {
   saveSetting,
 } from '../utils/storage.js';
 import Gallery from './Gallery.jsx';
+import SaveDialog from './SaveDialog.jsx';
 import Settings from './Settings.jsx';
 import { loadScreenDPI, saveScreenDPI } from '../utils/calibration.js';
 import './studio.css';
@@ -205,6 +206,15 @@ export default function App() {
   const [focusTextNonce, setFocusTextNonce] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryDesigns, setGalleryDesigns] = useState([]);
+  // Tracks the identity of the most-recently loaded design so that Save can
+  // pre-populate the dialog and re-save into the same record. null = no design
+  // loaded (fresh canvas or post-New).
+  const [loadedDesign, setLoadedDesign] = useState(null); // null | { id, name, demoSafe }
+  // Save-dialog state: null = closed, otherwise a pending save payload.
+  const [saveDialog, setSaveDialog] = useState(null); // null | { thumbnail }
+  // Demo mode: hidden, session-only toggle that filters the gallery to
+  // designs flagged demoSafe. Intentionally not persisted.
+  const [demoMode, setDemoMode] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
@@ -526,6 +536,11 @@ export default function App() {
       setPresetIdx(restored.presetIdx ?? 0);
       if (typeof restored.customW === 'number') setCustomW(restored.customW);
       if (typeof restored.customH === 'number') setCustomH(restored.customH);
+      setLoadedDesign({
+        id: restored.id,
+        name: restored.name,
+        demoSafe: restored.demoSafe ?? false,
+      });
       setGalleryOpen(false);
     } catch (err) {
       console.error('Load failed:', err);
@@ -651,33 +666,57 @@ export default function App() {
     setPresetIdx(0);
     setCustomW(4.0);
     setCustomH(2.0);
+    setLoadedDesign(null);
   }, [layers]);
 
+  // Open the save dialog. Refreshes galleryDesigns so the dialog's
+  // overwrite-check sees the current set of saved designs.
   const handleSave = useCallback(async () => {
     const canvas = visibleCanvasRef.current;
-    const defaultName = `Design ${new Date().toLocaleString()}`;
-    const name = window.prompt('Save design as:', defaultName);
-    if (name === null) return; // user cancelled
+    const thumbnail = makeThumbnail(canvas);
     try {
-      const thumbnail = makeThumbnail(canvas);
+      setGalleryDesigns(await loadDesigns());
+    } catch (err) {
+      console.warn('Failed to refresh designs for save dialog:', err);
+    }
+    setSaveDialog({ thumbnail });
+  }, []);
+
+  const handleSaveCancel = useCallback(() => {
+    setSaveDialog(null);
+  }, []);
+
+  // Commit the save. `id` may be the loaded design's id, an overwrite
+  // target's id, or null for a brand-new record. Preserves the existing
+  // target's favorite flag when overwriting.
+  const handleSaveCommit = useCallback(async ({ id, name, demoSafe }) => {
+    if (!saveDialog) return;
+    const existing = id ? galleryDesigns.find(d => d.id === id) : null;
+    try {
       const design = serializeDesign({
-        name: name.trim() || defaultName,
+        id: id ?? undefined,
+        name,
         layers,
         presetId: preset.id,
         customW,
         customH,
         labelW,
         labelH,
-        thumbnail,
+        thumbnail: saveDialog.thumbnail,
+        favorite: existing?.favorite ?? false,
+        demoSafe,
       });
       await saveDesign(design);
+      setLoadedDesign({ id: design.id, name: design.name, demoSafe: design.demoSafe });
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(null), 2000);
     } catch (err) {
       console.error('Save failed:', err);
       setSaveStatus({ error: err.message ?? 'Save failed' });
+    } finally {
+      setSaveDialog(null);
     }
-  }, [layers, preset, customW, customH, labelW, labelH]);
+  }, [saveDialog, galleryDesigns, layers, preset, customW, customH, labelW, labelH]);
 
   // ── Async init: presets, DPI, global settings ──────────────────────────
   useEffect(() => {
@@ -985,11 +1024,23 @@ export default function App() {
       {galleryOpen && (
         <Gallery
           designs={galleryDesigns}
+          demoMode={demoMode}
           onLoad={handleLoadDesign}
           onDelete={handleDeleteDesign}
           onToggleFavorite={handleToggleFavorite}
           onImport={handleImportDesign}
           onClose={handleCloseGallery}
+        />
+      )}
+
+      {saveDialog && (
+        <SaveDialog
+          initialName={loadedDesign?.name ?? ''}
+          initialDemoSafe={loadedDesign?.demoSafe ?? false}
+          loadedDesignId={loadedDesign?.id ?? null}
+          existingDesigns={galleryDesigns}
+          onCancel={handleSaveCancel}
+          onSave={handleSaveCommit}
         />
       )}
 
@@ -1030,7 +1081,15 @@ export default function App() {
         fontSize: 11, color: '#666', pointerEvents: 'none',
         zIndex: 9999, userSelect: 'none',
       }}>
-        v{__APP_VERSION__}
+        <span
+          onClick={() => setDemoMode(m => !m)}
+          style={{
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            padding: '2px 1px',
+            color: demoMode ? '#FED00A' : 'inherit',
+          }}
+        >v</span>{__APP_VERSION__}
       </div>
     </div>
   );

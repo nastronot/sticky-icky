@@ -245,14 +245,17 @@ async function deserializeLayer(l) {
 // ── Whole-design serialize / deserialize ──────────────────────────────────────
 
 /** Build a serializable design object from current app state.
- *  Stores presetId (stable across reorder/delete) instead of presetIdx. */
-export function serializeDesign({ name, layers, presetId, customW, customH, labelW, labelH, thumbnail, favorite = false }) {
+ *  Stores presetId (stable across reorder/delete) instead of presetIdx.
+ *  Pass `id` to overwrite an existing design's record (keeping its gallery
+ *  slot); omit it for a fresh save. `savedAt` always refreshes to now. */
+export function serializeDesign({ id, name, layers, presetId, customW, customH, labelW, labelH, thumbnail, favorite = false, demoSafe = false }) {
   return {
-    id: `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: id ?? `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name,
     thumbnail,
     savedAt: new Date().toISOString(),
     favorite,
+    demoSafe,
     presetId,
     customW,
     customH,
@@ -295,13 +298,26 @@ export async function deserializeDesign(design, dropdownPresets) {
     presetIdx: resolvedIdx ?? 0,
     customW: design.customW,
     customH: design.customH,
+    id: design.id,
+    name: design.name,
+    demoSafe: design.demoSafe ?? false,
   };
 }
 
 // ── Designs gallery (saved list) ──────────────────────────────────────────────
 
 export async function loadDesigns() {
-  return dbGetAll(STORE_DESIGNS);
+  const designs = await dbGetAll(STORE_DESIGNS);
+  // Backfill demoSafe on any legacy records that predate the field. Persist
+  // the backfill so the migration runs only once per record.
+  const missing = designs.filter(d => d && d.demoSafe === undefined);
+  if (missing.length > 0) {
+    for (const d of missing) {
+      d.demoSafe = false;
+      try { await dbPut(STORE_DESIGNS, d); } catch { /* non-fatal */ }
+    }
+  }
+  return designs;
 }
 
 /** Append a design to the saved list. Throws on quota exceeded. */

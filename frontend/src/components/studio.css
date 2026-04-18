@@ -1346,6 +1346,56 @@
   font-weight: 600;
 }
 
+/* Save dialog ============================================================== */
+
+.save-dialog {
+  width: min(420px, 92vw);
+}
+
+.save-dialog .settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.save-dialog-field input[type='text'] {
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.save-dialog-field input[type='text']:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.save-dialog-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.save-dialog-checkbox input[type='checkbox'] {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.cal-btn.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Pattern picker dropdown =================================================== */
 
 .pattern-dropdown {

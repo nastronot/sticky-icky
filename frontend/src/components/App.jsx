@@ -210,12 +210,11 @@ function makeImageLayer(file, originalImage, labelW, labelH) {
     ditherAlgo: 'floydSteinberg',
     ditherAmount: 50,
     threshold: 128,
-    // Image-processing pipeline (upscale → edge → threshold-or-dither).
-    // All off by default — legacy designs load unchanged.
+    // Image-processing pipeline (upscale → threshold-or-dither). All off
+    // by default — legacy designs load unchanged, and old designs with
+    // removed edge fields (edgeEnabled/edgeStrength) or upscaleFactor=4
+    // are silently ignored by the render path.
     upscaleEnabled: false,
-    upscaleFactor: 2,         // 2 | 4
-    edgeEnabled: false,
-    edgeStrength: 50,          // 0..100
     thresholdMode: 'off',      // 'off' | 'auto' | 'manual'
     thresholdValue: 128,       // used when thresholdMode === 'manual'
   };

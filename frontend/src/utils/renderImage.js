@@ -1,6 +1,5 @@
 import { ditherImage } from './dither.js';
 import { epxUpscale } from './upscale.js';
-import { sobelEdges } from './edgeDetect.js';
 import { otsuThreshold, applyThreshold } from './threshold.js';
 
 /**
@@ -17,28 +16,20 @@ export function makeDitherCache() {
   return new Map();
 }
 
-// Processing order per spec: upscale → edge detect → threshold OR dither.
-// Each step is a pure ImageData → ImageData transform. When the Threshold
-// op is active the existing dither step is skipped (threshold already
-// produces a clean 1-bit result).
+// Processing order per spec: upscale → threshold OR dither. Each step is
+// a pure ImageData → ImageData transform. When the Threshold op is active
+// the existing dither step is skipped (threshold already produces a clean
+// 1-bit result).
 function processImage(layer) {
   let current = layer.originalImage;
 
-  // 1. EPX upscale (2× or 4×).
-  const upscaleFactor = (layer.upscaleEnabled && (layer.upscaleFactor === 2 || layer.upscaleFactor === 4))
-    ? layer.upscaleFactor
-    : 1;
-  if (upscaleFactor > 1) {
-    current = epxUpscale(current, upscaleFactor);
+  // 1. EPX upscale (2× only — 4× was removed for being rarely useful and
+  //    memory-expensive).
+  if (layer.upscaleEnabled) {
+    current = epxUpscale(current, 2);
   }
 
-  // 2. Sobel edge detection.
-  if (layer.edgeEnabled) {
-    const strength = layer.edgeStrength ?? 50;
-    current = sobelEdges(current, strength);
-  }
-
-  // 3. Threshold OR dither (mutually exclusive).
+  // 2. Threshold OR dither (mutually exclusive).
   const mode = layer.thresholdMode ?? 'off';
   if (mode === 'auto') {
     const t = otsuThreshold(current);
@@ -59,9 +50,6 @@ function signatureOf(layer) {
   return {
     originalImage: layer.originalImage,
     upscaleEnabled: !!layer.upscaleEnabled,
-    upscaleFactor: layer.upscaleFactor ?? 2,
-    edgeEnabled: !!layer.edgeEnabled,
-    edgeStrength: layer.edgeStrength ?? 50,
     thresholdMode: layer.thresholdMode ?? 'off',
     thresholdValue: layer.thresholdValue ?? 128,
     algo: layer.ditherAlgo,
@@ -75,9 +63,6 @@ function sigEquals(a, b) {
   return (
     a.originalImage === b.originalImage &&
     a.upscaleEnabled === b.upscaleEnabled &&
-    a.upscaleFactor === b.upscaleFactor &&
-    a.edgeEnabled === b.edgeEnabled &&
-    a.edgeStrength === b.edgeStrength &&
     a.thresholdMode === b.thresholdMode &&
     a.thresholdValue === b.thresholdValue &&
     a.algo === b.algo &&

@@ -592,25 +592,6 @@
   padding: 4px 0;
 }
 
-/* Image-layer dither/brightness block goes dim when Threshold mode is
-   active — the pipeline skips dither entirely in that case, so the
-   controls no longer affect output. Disabled native controls already
-   get browser-supplied dimming; the wrapper provides a group-level
-   contrast cue so the relationship is easy to spot at a glance. */
-.dither-block {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.dither-block.disabled {
-  opacity: 0.45;
-}
-
-.dither-disabled-hint {
-  margin: 0;
-  color: var(--text-faint);
-}
 
 /* Add Layer buttons — primary action style (yellow on black) since
    they're the entry point to creating new layers. */

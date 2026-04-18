@@ -120,7 +120,7 @@ export default function PatternPicker({ value, onChange }) {
               onClick={handleManage}
             >
               <Settings2 size={14} />
-              <span>Manage patterns…</span>
+              <span>Manage patterns</span>
             </button>
           </div>
         )}

@@ -29,7 +29,7 @@ function computeTrueSizeScale(screenDPI) {
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText, cropMode = null, onUpdateCropRect },
+  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText, cropMode = null, onUpdateCropRect, patterns = null },
   ref,
 ) {
   const isRotated = viewportRotation === 90;
@@ -102,6 +102,15 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     for (const id of lastMap.keys()) if (!live.has(id)) lastMap.delete(id);
     pruneDitherCache(ditherCacheRef.current, layers.map(l => l.id));
   }, [layers]);
+
+  // Patterns changing identity (new bitmap data, user-edited pattern, etc.)
+  // doesn't alter layer object identity, so the skip check inside the main
+  // render effect would leave the stale render in place. Invalidate the
+  // lastRenderedRef map whenever patterns change so every visible layer
+  // re-renders with fresh bitmap data on the next pass.
+  useEffect(() => {
+    if (patterns) lastRenderedRef.current.clear();
+  }, [patterns]);
 
   // ── Re-render layers + recomposite + redraw selection chrome ──────────────
   useEffect(() => {
@@ -197,7 +206,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode, onPatchLayer]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode, onPatchLayer, patterns]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid

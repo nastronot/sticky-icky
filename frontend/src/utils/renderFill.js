@@ -21,8 +21,8 @@ export function renderFillLayer(canvas, layer) {
   ctx.rotate((layer.rotation * Math.PI) / 180);
   ctx.scale(layer.flipH ? -1 : 1, layer.flipV ? -1 : 1);
 
-  const patId = layer.fillPattern ?? 'solid';
-  if (patId === 'solid') {
+  const patId = layer.fillPattern ?? 'default-solid';
+  if (patId === 'default-solid' || patId === 'solid') {
     ctx.fillStyle = 'black';
   } else {
     ctx.fillStyle = createCanvasPattern(ctx, patId);

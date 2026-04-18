@@ -100,8 +100,8 @@ function drawText(canvas, displayText, originalText, font, bold, italic, smallCa
   applyFont(ctx, fit.size, font, bold, italic);
   ctx.textBaseline = 'alphabetic';
 
-  const patId = fillPattern ?? 'solid';
-  const usePattern = patId !== 'solid';
+  const patId = fillPattern ?? 'default-solid';
+  const usePattern = patId !== 'solid' && patId !== 'default-solid';
 
   if (invert) {
     if (usePattern) {

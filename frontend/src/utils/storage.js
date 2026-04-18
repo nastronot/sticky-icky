@@ -1,24 +1,29 @@
-// IndexedDB-backed storage for designs, label-size presets, and app settings
-// (screen DPI, print settings, etc.).
+// IndexedDB-backed storage for designs, label-size presets, app settings
+// (screen DPI, print settings, etc.), and fill patterns.
 //
-// Schema (version 2):
+// Schema (version 3):
 //   db: "sticky_zebra"
 //     designs  — keyPath "id"          — every saved design
 //     autosave — (legacy, unused)      — kept to avoid a version bump
 //     presets  — keyPath "id"          — label-size presets
 //     settings — no keyPath, keyed by setting name (e.g. "screenDPI")
+//     patterns — keyPath "id"          — fill patterns (defaults + custom)
 //
 // Version 1→2 migration adds the presets and settings stores and pulls in
 // data from localStorage (thermal_label_presets_v2, thermal_screen_dpi).
+// Version 2→3 adds the patterns store; first-run seeding happens in App.
 // The legacy thermal_designs / thermal_autosave localStorage migration from
 // v1 is preserved for users who never opened v1.
 
+import { mapLegacyPatternId } from './patterns.js';
+
 const DB_NAME = 'sticky_zebra';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_DESIGNS = 'designs';
 const STORE_AUTOSAVE = 'autosave';
 const STORE_PRESETS = 'presets';
 const STORE_SETTINGS = 'settings';
+const STORE_PATTERNS = 'patterns';
 
 // Legacy localStorage keys — read once during migration, then deleted.
 const LEGACY_DESIGNS_KEY = 'thermal_designs';
@@ -54,6 +59,15 @@ function openRawDB() {
         }
         if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
           db.createObjectStore(STORE_SETTINGS);
+        }
+      }
+
+      // v2→v3: create patterns store. First-run seeding runs from App after
+      // the store is open — kept out of onupgradeneeded so seed data lives
+      // beside the other pattern code in patterns.js.
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains(STORE_PATTERNS)) {
+          db.createObjectStore(STORE_PATTERNS, { keyPath: 'id' });
         }
       }
     };
@@ -233,13 +247,21 @@ function serializeLayer(layer) {
 }
 
 async function deserializeLayer(l) {
-  if (l.type === 'image' && l.originalImageDataURL) {
-    const originalImage = await dataURLToImageData(l.originalImageDataURL);
+  // Migrate legacy pattern IDs ("solid", "waves", …) to the new default-*
+  // namespace. Unknown IDs — including references to custom patterns that
+  // the user has since deleted — collapse silently to default-solid at
+  // render time via getPattern's fallback, so layers render as plain black
+  // instead of erroring.
+  const mapped = l.fillPattern != null
+    ? { ...l, fillPattern: mapLegacyPatternId(l.fillPattern) }
+    : l;
+  if (mapped.type === 'image' && mapped.originalImageDataURL) {
+    const originalImage = await dataURLToImageData(mapped.originalImageDataURL);
     // Strip the data URL field — it's been hydrated into ImageData now.
-    const { originalImageDataURL: _stripped, ...rest } = l;
+    const { originalImageDataURL: _stripped, ...rest } = mapped;
     return { ...rest, originalImage };
   }
-  return { ...l };
+  return { ...mapped };
 }
 
 // ── Whole-design serialize / deserialize ──────────────────────────────────────
@@ -411,4 +433,18 @@ export async function saveSetting(key, value) {
 
 export async function deleteSetting(key) {
   await dbDelete(STORE_SETTINGS, key);
+}
+
+// ── Patterns ──────────────────────────────────────────────────────────────────
+
+export async function loadPatternsFromDB() {
+  return dbGetAll(STORE_PATTERNS);
+}
+
+export async function savePatternToDB(pattern) {
+  await dbPut(STORE_PATTERNS, pattern);
+}
+
+export async function deletePatternFromDB(id) {
+  await dbDelete(STORE_PATTERNS, id);
 }

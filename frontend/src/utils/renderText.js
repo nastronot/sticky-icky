@@ -124,8 +124,8 @@ export async function renderTextLayer(canvas, layer) {
 
   const cx = layer.x + m.width / 2;
   const cy = layer.y + m.height / 2;
-  const patId = layer.fillPattern ?? 'solid';
-  const usePattern = patId !== 'solid';
+  const patId = layer.fillPattern ?? 'default-solid';
+  const usePattern = patId !== 'solid' && patId !== 'default-solid';
 
   ctx.save();
   ctx.translate(cx, cy);

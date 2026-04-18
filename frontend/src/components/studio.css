@@ -1483,3 +1483,177 @@
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+
+.pattern-menu-divider {
+  height: 1px;
+  background: var(--border-faint);
+  margin: 4px 0;
+}
+
+.pattern-option-action {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pattern-option-action:hover {
+  background: var(--bg-control-hover);
+  color: var(--accent);
+}
+
+/* Pattern editor modal ====================================================== */
+
+.pattern-editor-panel {
+  width: min(740px, 96vw);
+}
+
+.pattern-editor-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pattern-editor-workspace {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.pattern-editor-grid {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: crosshair;
+  image-rendering: pixelated;
+  touch-action: none;
+  max-width: 100%;
+  height: auto;
+  flex-shrink: 1;
+}
+
+.pattern-editor-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: 128px;
+}
+
+.pattern-editor-preview-label {
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pattern-editor-preview {
+  background: #fff;
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  image-rendering: pixelated;
+}
+
+.pattern-editor-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pattern-editor-tools .cal-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Pattern manager modal ===================================================== */
+
+.pattern-manager-panel {
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+}
+
+.pattern-manager-list {
+  padding: 16px 22px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 56vh;
+  overflow-y: auto;
+}
+
+.pattern-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-control);
+  border: 1px solid var(--border-faint);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.pattern-row-swatch {
+  display: block;
+  border-radius: 3px;
+  border: 1px solid var(--border-faint);
+  image-rendering: pixelated;
+  background: #fff;
+}
+
+.pattern-row-name {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pattern-row-tag {
+  color: var(--text-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border: 1px solid var(--border-faint);
+  border-radius: 3px;
+  background: var(--bg-page);
+}
+
+.pattern-row-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.pattern-row-actions button {
+  width: 26px;
+  height: 26px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-faint);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pattern-row-actions button:hover {
+  background: var(--bg-control-hover);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.pattern-manager-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--border-faint);
+}
+
+.pattern-manager-footer .cal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

@@ -26,6 +26,19 @@ import {
 import Gallery from './Gallery.jsx';
 import SaveDialog from './SaveDialog.jsx';
 import Settings from './Settings.jsx';
+import PatternEditor from './PatternEditor.jsx';
+import PatternManager from './PatternManager.jsx';
+import { PatternContext } from './patternContext.js';
+import {
+  DEFAULT_PATTERNS,
+  PATTERN_SIZE,
+  setPatternsRegistry,
+} from '../utils/patterns.js';
+import {
+  loadPatternsFromDB,
+  savePatternToDB,
+  deletePatternFromDB,
+} from '../utils/storage.js';
 import { loadScreenDPI, saveScreenDPI } from '../utils/calibration.js';
 import './studio.css';
 
@@ -42,7 +55,7 @@ const DEFAULT_BIGTEXT = {
   hAlign: 'center',
   vAlign: 'middle',
   letterSpacing: -2,
-  fillPattern: 'solid',
+  fillPattern: 'default-solid',
   invert: false,
   xor: true,
   ditherAlgo: 'none',
@@ -91,7 +104,7 @@ function makeTextLayer(labelW, labelH) {
     height: m.height,
     x: Math.round((labelW - m.width) / 2),
     y: Math.round((labelH - m.height) / 2),
-    fillPattern: 'solid',
+    fillPattern: 'default-solid',
     invert: false,
     xor: true,
     ditherAlgo: 'none',
@@ -115,7 +128,7 @@ function makeFillLayer(labelW, labelH) {
     flipH: false,
     flipV: false,
     color: 'black',
-    fillPattern: 'solid',
+    fillPattern: 'default-solid',
     invert: false,
     xor: true,
     ditherAlgo: 'none',
@@ -215,6 +228,15 @@ export default function App() {
   // Demo mode: hidden, session-only toggle that filters the gallery to
   // designs flagged demoSafe. Intentionally not persisted.
   const [demoMode, setDemoMode] = useState(false);
+
+  // ── Patterns ─────────────────────────────────────────────────────────────
+  // Source of truth for every pattern swatch/render lookup in the app. The
+  // patterns.js module-level registry mirrors this array (kept in sync via
+  // setPatternsRegistry calls below) so the synchronous render helpers can
+  // still look patterns up by id.
+  const [patterns, setPatterns] = useState([]);
+  const [patternEditor, setPatternEditor] = useState(null); // null | { initial, afterSave }
+  const [patternManagerOpen, setPatternManagerOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const requestFocusText = useCallback(() => setFocusTextNonce(n => n + 1), []);
@@ -625,6 +647,130 @@ export default function App() {
     });
   }, [layers]);
 
+  // ── Pattern management ───────────────────────────────────────────────────
+  // Patterns live in IndexedDB; the React state mirror is kept sync'd on every
+  // mutation, and setPatternsRegistry fires off a useEffect so render-time
+  // lookups see the new bitmap data.
+
+  const openPatternEditor = useCallback((initial, afterSave) => {
+    setPatternEditor({ initial: initial ?? null, afterSave: afterSave ?? null });
+  }, []);
+
+  const handlePatternSave = useCallback(async ({ id, label, data }) => {
+    // Editing an existing pattern preserves its isDefault / favorite / createdAt
+    // so the default-ness stays stable across edits.
+    const existing = id ? patterns.find(p => p.id === id) : null;
+    const record = {
+      id: existing?.id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      label,
+      width: PATTERN_SIZE,
+      height: PATTERN_SIZE,
+      data: data.slice(),
+      isDefault: existing?.isDefault ?? false,
+      favorite: existing?.favorite ?? false,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+    try { await savePatternToDB(record); }
+    catch (err) { console.error('Pattern save failed:', err); return; }
+    setPatterns(prev => {
+      const i = prev.findIndex(p => p.id === record.id);
+      if (i >= 0) {
+        const copy = prev.slice();
+        copy[i] = record;
+        return copy;
+      }
+      return [...prev, record];
+    });
+    const after = patternEditor?.afterSave;
+    setPatternEditor(null);
+    if (after) after(record);
+  }, [patterns, patternEditor]);
+
+  const handlePatternToggleFavorite = useCallback(async (id) => {
+    const target = patterns.find(p => p.id === id);
+    if (!target) return;
+    const next = { ...target, favorite: !target.favorite };
+    try { await savePatternToDB(next); }
+    catch (err) { console.error('Favorite toggle failed:', err); return; }
+    setPatterns(prev => prev.map(p => (p.id === id ? next : p)));
+  }, [patterns]);
+
+  // Count the number of saved designs that reference a given pattern id.
+  // Used so the delete-pattern confirmation can quote a usage count.
+  const countPatternUsage = useCallback(async (patternId) => {
+    try {
+      const designs = await loadDesigns();
+      let count = 0;
+      for (const d of designs) {
+        if (Array.isArray(d.layers) && d.layers.some(l => l?.fillPattern === patternId)) {
+          count += 1;
+        }
+      }
+      return count;
+    } catch (err) {
+      console.warn('Usage count failed:', err);
+      return 0;
+    }
+  }, []);
+
+  const handlePatternDelete = useCallback(async (pattern) => {
+    const usage = await countPatternUsage(pattern.id);
+    const msg = usage > 0
+      ? `Pattern "${pattern.label}" is used in ${usage} design${usage === 1 ? '' : 's'}. Deleting will cause those layers to fall back to solid fill. Delete anyway?`
+      : `Delete pattern "${pattern.label}"?`;
+    if (!window.confirm(msg)) return;
+    try { await deletePatternFromDB(pattern.id); }
+    catch (err) { console.error('Pattern delete failed:', err); return; }
+    setPatterns(prev => prev.filter(p => p.id !== pattern.id));
+    // Any layers in the *current* canvas referencing the deleted pattern
+    // silently fall back to solid via getPattern's legacy shim on next
+    // render. Nothing else to do here.
+  }, [countPatternUsage]);
+
+  const handleRestoreDefaults = useCallback(async () => {
+    const existingIds = new Set(patterns.map(p => p.id));
+    const missing = DEFAULT_PATTERNS.filter(p => !existingIds.has(p.id));
+    if (missing.length === 0) return;
+    const now = new Date().toISOString();
+    const added = [];
+    for (const p of missing) {
+      const record = {
+        id: p.id,
+        label: p.label,
+        width: PATTERN_SIZE,
+        height: PATTERN_SIZE,
+        data: p.data,
+        isDefault: true,
+        favorite: false,
+        createdAt: now,
+      };
+      try {
+        await savePatternToDB(record);
+        added.push(record);
+      } catch (err) {
+        console.warn('restore default failed:', p.id, err);
+      }
+    }
+    if (added.length > 0) setPatterns(prev => [...prev, ...added]);
+  }, [patterns]);
+
+  const patternContextValue = useMemo(() => ({
+    patterns,
+    onCreatePattern: () => {
+      // When created via the picker, auto-select the new pattern on the
+      // currently selected layer.
+      const targetLayerId = selectedLayerId;
+      openPatternEditor(null, (created) => {
+        if (targetLayerId) {
+          setLayers(ls => ls.map(l => (
+            l.id === targetLayerId ? { ...l, fillPattern: created.id } : l
+          )));
+        }
+      });
+    },
+    onManagePatterns: () => setPatternManagerOpen(true),
+  }), [patterns, selectedLayerId, openPatternEditor]);
+
   const handleImportDesign = useCallback(async (design) => {
     try {
       // Re-stamp id and savedAt so the import doesn't collide with an
@@ -752,8 +898,42 @@ export default function App() {
         await saveSetting('xOffset_v2_migrated', true);
       }
 
+      // Patterns: first-run seed of the 12 built-ins (guarded by a flag so
+      // defaults the user has deleted don't come back).
+      let loadedPatterns = [];
+      try {
+        loadedPatterns = await loadPatternsFromDB();
+      } catch (err) {
+        console.warn('Failed to load patterns:', err);
+      }
+      const seeded = await loadSetting('patterns_seeded_v1');
+      if (!seeded) {
+        const existingIds = new Set(loadedPatterns.map(p => p.id));
+        const toSeed = DEFAULT_PATTERNS.filter(p => !existingIds.has(p.id));
+        if (toSeed.length > 0) {
+          const now = new Date().toISOString();
+          for (const p of toSeed) {
+            const record = {
+              id: p.id,
+              label: p.label,
+              width: PATTERN_SIZE,
+              height: PATTERN_SIZE,
+              data: p.data,
+              isDefault: true,
+              favorite: false,
+              createdAt: now,
+            };
+            try { await savePatternToDB(record); } catch (err) { console.warn('seed pattern failed:', p.id, err); }
+            loadedPatterns.push(record);
+          }
+        }
+        try { await saveSetting('patterns_seeded_v1', true); } catch { /* non-fatal */ }
+      }
+
       if (cancelled) return;
       setPresets(loadedPresets);
+      setPatterns(loadedPatterns);
+      setPatternsRegistry(loadedPatterns);
       if (loadedDPI !== null) setScreenDPI(loadedDPI);
       if (loadedDarkness !== null) setDarkness(loadedDarkness);
       if (loadedSpeed !== null) setSpeed(loadedSpeed);
@@ -762,6 +942,13 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Keep the render-time pattern registry synced with React state on every
+  // patterns change (new / edit / delete / favourite). Invalidates the canvas
+  // pattern cache as a side-effect so subsequent renders see the fresh data.
+  useEffect(() => {
+    if (patterns.length > 0) setPatternsRegistry(patterns);
+  }, [patterns]);
 
   // ── Paste image from clipboard ────────────────────────────────────────────
   // Document-level paste listener. Skips when focus is on a text input so the
@@ -953,6 +1140,7 @@ export default function App() {
   };
 
   return (
+    <PatternContext.Provider value={patternContextValue}>
     <div
       className="studio"
       onDragEnter={handleDragEnter}
@@ -984,6 +1172,7 @@ export default function App() {
         onRequestFocusText={requestFocusText}
         cropMode={cropMode}
         onUpdateCropRect={updateCropRect}
+        patterns={patterns}
       />
 
       <LayerPanel
@@ -1076,6 +1265,27 @@ export default function App() {
           onClose={() => setPresetEditorOpen(false)}
         />
       )}
+
+      {patternManagerOpen && (
+        <PatternManager
+          patterns={patterns}
+          onNew={() => openPatternEditor(null, null)}
+          onEdit={(p) => openPatternEditor(p, null)}
+          onDelete={handlePatternDelete}
+          onToggleFavorite={handlePatternToggleFavorite}
+          onRestoreDefaults={handleRestoreDefaults}
+          onClose={() => setPatternManagerOpen(false)}
+        />
+      )}
+
+      {patternEditor && (
+        <PatternEditor
+          initial={patternEditor.initial}
+          existingPatterns={patterns}
+          onCancel={() => setPatternEditor(null)}
+          onSave={handlePatternSave}
+        />
+      )}
       <div style={{
         position: 'fixed', bottom: 8, left: 8,
         fontSize: 11, color: '#666', pointerEvents: 'none',
@@ -1092,5 +1302,6 @@ export default function App() {
         >v</span>{__APP_VERSION__}
       </div>
     </div>
+    </PatternContext.Provider>
   );
 }

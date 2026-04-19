@@ -2,12 +2,20 @@
 
 ## Project
 
-Sticky Zebra — browser-based design tool for the Zebra LP2844 thermal printer. Single repo, two parts:
+Sticky Icky — browser-based design tool for the Zebra LP2844 thermal printer. Single repo, two parts:
 
 - `~/dev/thermal/frontend/` — React + Vite app. Multi-layer canvas editor (Big Text, free Text, Image, Solid Fill), per-layer dithering and invert, XOR compositing, save/load gallery backed by IndexedDB.
 - `~/dev/thermal/backend/` — Minimal FastAPI server. Single `POST /print` endpoint that converts a base64 1bpp bitmap into an EPL2 GW payload and writes it to the printer over serial.
 
 `docs/spec.md` is the original v1 brief and is now mostly outdated. Use this file as the source of truth for current state.
+
+---
+
+## Repo
+
+- **Remote**: `git@github-nastronot:nastronot/sticky-icky.git` (SSH alias — see `~/.ssh/config` for host mapping)
+- **Owner / author**: `nastronot <nastronot@proton.me>` (local git config, not global)
+- **Previous identity**: project was renamed from `sticky-zebra` and the history was rewritten under the new identity. A `backup-pre-scrub` branch preserves the pre-rewrite commits locally but should never be pushed.
 
 ---
 
@@ -99,7 +107,7 @@ Both apps are containerized and deployed to a Synology NAS.
 
 - **frontend** container: nginx:alpine serving the Vite build on port 80, proxying `/api/` → `http://backend:8765/` (the `/api` prefix is stripped). SPA fallback routes unmatched paths to `index.html`.
 - **backend** container: python:3.12-slim running uvicorn on 8765 (exposed on the internal compose network only — nginx is the only ingress). `/dev/ttyUSB0` is passed in via compose `devices:` — the printer must be connected before starting the stack.
-- **Images**: `ghcr.io/mattwillms/sticky-zebra-frontend:latest`, `ghcr.io/mattwillms/sticky-zebra-backend:latest`. Also tagged with `:sha-<commit>` per build.
+- **Images**: `ghcr.io/nastronot/sticky-icky-frontend:latest`, `ghcr.io/nastronot/sticky-icky-backend:latest`. Also tagged with `:sha-<commit>` per build.
 - **CI**: `.github/workflows/build-and-push.yml` builds and pushes both images on every push to `main` using a matrix over frontend / backend.
 
 ### Env vars
@@ -142,7 +150,7 @@ Both apps are containerized and deployed to a Synology NAS.
 - **Canvas interaction**: drag, 8 resize handles (corners + edges), rotation handle, shift inverts the layer's `lockAspect` for the drag, shift snaps rotation to 45°. Pointer math handles viewport rotation.
 - **Compositing**: XOR (default) — overlapping black flips to white. Per-layer toggle for solid overwrite mode.
 - **Image crop**: per-image crop mode with draggable green crop rectangle, Apply replaces the layer's `originalImage` with the cropped slice.
-- **Save / load**: full design state to IndexedDB (`sticky_zebra` db, `designs` store). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout. Designs reference their label stock by `presetId` (stable across reorder/delete); legacy designs that stored `presetIdx` are migrated on load.
+- **Save / load**: full design state to IndexedDB (`sticky_icky` db, `designs` store). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout. Designs reference their label stock by `presetId` (stable across reorder/delete); legacy designs that stored `presetIdx` are migrated on load.
 - **Save dialog** (`SaveDialog.jsx`): modal with Name + Demo Safe checkbox. Re-saving a design that was loaded pre-populates both fields and re-saves into the same record (skips the overwrite prompt because it's the same id). A case-insensitive name collision against a *different* design triggers an Overwrite / Cancel confirmation; Overwrite writes into the target's id (inheriting its gallery slot and favorite flag) and Cancel returns to the form with the name still populated. Saving stamps the current design's identity as the new `loadedDesign` so subsequent saves re-use it.
 - **Design schema** includes `demoSafe: boolean` (default false). Legacy records missing the field are backfilled on first `loadDesigns` and persisted back to IndexedDB — silent one-time migration per record.
 - **Demo mode**: hidden, session-only toggle (React state, not persisted). The "v" glyph in the version badge at bottom-left is the toggle — inactive it renders in the normal badge colour; active it glows `#FED00A`. When on, the gallery filters to designs with `demoSafe === true`, and pagination / page-count recalculate from the filtered set. Everything else in the UI is unchanged.
@@ -150,7 +158,7 @@ Both apps are containerized and deployed to a Synology NAS.
 - **Keyboard shortcuts**: arrow nudge (1 px / 10 px with shift), Delete to remove layer, Escape to deselect, Ctrl+D to duplicate, Ctrl+V to paste image from clipboard.
 - **Drag-and-drop image files** anywhere in the studio.
 - **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; calibration via Settings modal).
-- **Label-size presets**: stored in IndexedDB (`sticky_zebra.presets`). Shape: `{ id, label, w, h, favorite }`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
+- **Label-size presets**: stored in IndexedDB (`sticky_icky.presets`). Shape: `{ id, label, w, h, favorite }`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
 - **Global settings**: darkness, speed, xOffset, yOffset, screenDPI — stored in IndexedDB `settings` store. Edited via the Settings modal (gear icon in the View button group). These are global, not per-preset.
 - **Settings modal**: tabbed (Print / Display). Print tab: darkness slider, speed slider, X/Y offset inputs in dots. Display tab: screen DPI calibration with ruler drag UI.
 - **Fonts**: Google Fonts collection (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
@@ -165,7 +173,7 @@ Both apps are containerized and deployed to a Synology NAS.
 | Canvas        | HTML5 Canvas API (no Konva — that's spec leftovers) |
 | Icons         | lucide-react                                        |
 | Dithering     | Hand-rolled in `src/utils/dither.js`                |
-| Storage       | IndexedDB (`sticky_zebra` db v3) — designs, presets, settings, patterns |
+| Storage       | IndexedDB (`sticky_icky` db v3) — designs, presets, settings, patterns |
 | Backend       | FastAPI + pyserial                                  |
 | Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1, rtscts=True)` |
 

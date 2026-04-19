@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Sticky Zebra app icon: yellow squircle with a centered red circle.
+  <!-- Sticky Icky app icon: yellow squircle with a centered red circle.
        Squircle corner radius is ~20% of the icon edge. The red circle's
        diameter equals the gap between its edge and the squircle's edge —
        so circle diameter and each side gap are both icon_size / 3 for a

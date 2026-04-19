@@ -1,4 +1,4 @@
-// Screen DPI calibration — backed by IndexedDB (sticky_zebra.settings).
+// Screen DPI calibration — backed by IndexedDB (sticky_icky.settings).
 // The value migrates from localStorage on first v2 DB open (see storage.js).
 
 import { loadSetting, saveSetting, deleteSetting } from './storage.js';

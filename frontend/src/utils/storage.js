@@ -2,7 +2,7 @@
 // (screen DPI, print settings, etc.), and fill patterns.
 //
 // Schema (version 3):
-//   db: "sticky_zebra"
+//   db: "sticky_icky"
 //     designs  — keyPath "id"          — every saved design
 //     autosave — (legacy, unused)      — kept to avoid a version bump
 //     presets  — keyPath "id"          — label-size presets
@@ -18,7 +18,7 @@
 import { mapLegacyPatternId } from './patterns.js';
 import { normalizeRotation } from './rotation.js';
 
-const DB_NAME = 'sticky_zebra';
+const DB_NAME = 'sticky_icky';
 const DB_VERSION = 3;
 const STORE_DESIGNS = 'designs';
 const STORE_AUTOSAVE = 'autosave';

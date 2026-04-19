@@ -2,7 +2,7 @@
 // dimensions plus favorite flag. Print settings (darkness, speed, offsets)
 // are global, not per-preset — see the settings store in storage.js.
 //
-// After v2 storage migration, presets live in IndexedDB (sticky_zebra.presets).
+// After v2 storage migration, presets live in IndexedDB (sticky_icky.presets).
 // The "Custom" sentinel is appended at render time and never stored in the DB.
 
 import { loadPresetsFromDB, replaceAllPresets } from './storage.js';

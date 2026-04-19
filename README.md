@@ -1,10 +1,10 @@
-# Sticky Zebra
+# Sticky Icky
 
-![Sticky Zebra](docs/hero.webp)
+![Sticky Icky](docs/hero.webp)
 
 Turn electronic eBay waste into art.
 
-Sticky Zebra is a browser-based sticker design tool for the Zebra LP2844 thermal printer — the kind you can grab on eBay for $40.
+Sticky Icky is a browser-based sticker design tool for the Zebra LP2844 thermal printer — the kind you can grab on eBay for $40.
 
 Design labels in your browser, hit print, and a sticker comes out. Text, images, layers, dithering — everything renders at the printer's native 203 DPI so what you see is what you get.
 
@@ -93,7 +93,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 The printer's USB-to-serial adapter must be plugged in before starting — Docker maps `/dev/ttyUSB0` into the backend container.
 
-Images: `ghcr.io/mattwillms/sticky-zebra-frontend:latest` and `ghcr.io/mattwillms/sticky-zebra-backend:latest`.
+Images: `ghcr.io/nastronot/sticky-icky-frontend:latest` and `ghcr.io/nastronot/sticky-icky-backend:latest`.
 
 The frontend (nginx) serves the app on port 3000 and proxies `/api/` requests to the backend. The backend talks to the printer over serial.
 
@@ -155,7 +155,7 @@ Licensed under the GNU General Public License v3.0.
 
 # Firmware and transport notes
 
-This section exists for the next person who buys an LP2844 off eBay and spends a week wondering why their printer ignores them. None of it is required to use Sticky Zebra — it works out of the box with the serial cable. Read on if things aren't working, or if you're curious why this project took the shape it did.
+This section exists for the next person who buys an LP2844 off eBay and spends a week wondering why their printer ignores them. None of it is required to use Sticky Icky — it works out of the box with the serial cable. Read on if things aren't working, or if you're curious why this project took the shape it did.
 
 ## The short version
 
@@ -205,7 +205,7 @@ Rebranded units require [DCHHV/patch2844](https://github.com/DCHHV/patch2844), a
 
 **Why this wasn't done:** the serial path works, it works on every LP2844 regardless of branding, there's no risk of bricking the printer mid-flash, and the current architecture doesn't benefit meaningfully from switching transports. Updating is optional, low-value, and non-trivial in the rebranded case.
 
-**Why updating might break Sticky Zebra for you:** if you update your firmware and the new version handles EPL2 commands differently — different offsets, different buffer behavior, different `GW` semantics — the printed output may shift, truncate, or fail in new ways. The hard-coded bitmap offset in `backend/main.py` (`GW10,0`), the 245 KB image buffer limit, and the 38400 baud setting are all calibrated to the specific combination of firmware and hardware this project was built against. YMMV after an update.
+**Why updating might break Sticky Icky for you:** if you update your firmware and the new version handles EPL2 commands differently — different offsets, different buffer behavior, different `GW` semantics — the printed output may shift, truncate, or fail in new ways. The hard-coded bitmap offset in `backend/main.py` (`GW10,0`), the 245 KB image buffer limit, and the 38400 baud setting are all calibrated to the specific combination of firmware and hardware this project was built against. YMMV after an update.
 
 ## Troubleshooting
 

@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  OWNER: mattwillms
+  OWNER: nastronot
 
 jobs:
   build:
@@ -21,10 +21,10 @@ jobs:
         include:
           - name: frontend
             context: ./frontend
-            image: sticky-zebra-frontend
+            image: sticky-icky-frontend
           - name: backend
             context: ./backend
-            image: sticky-zebra-backend
+            image: sticky-icky-backend
     steps:
       - name: Checkout
         uses: actions/checkout@v4

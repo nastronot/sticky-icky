@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   backend:
-    image: ghcr.io/mattwillms/sticky-zebra-backend:latest
+    image: ghcr.io/nastronot/sticky-icky-backend:latest
     environment:
       CORS_ORIGINS: ${CORS_ORIGINS}
     expose:
@@ -12,7 +12,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/mattwillms/sticky-zebra-frontend:latest
+    image: ghcr.io/nastronot/sticky-icky-frontend:latest
     ports:
       - "3000:80"
     depends_on:

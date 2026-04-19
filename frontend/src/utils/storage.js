@@ -6,7 +6,9 @@
 //     designs  — keyPath "id"          — every saved design
 //     autosave — (legacy, unused)      — kept to avoid a version bump
 //     presets  — keyPath "id"          — label-size presets
-//     settings — no keyPath, keyed by setting name (e.g. "screenDPI")
+//     settings — no keyPath, keyed by setting name (e.g. "screenDPI",
+//                "theme", "accent" — the last two are the appearance
+//                selection; see utils/theme.js)
 //     patterns — keyPath "id"          — fill patterns (defaults + custom)
 //
 // Version 1→2 migration adds the presets and settings stores and pulls in

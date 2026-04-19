@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Sun, Moon, Circle } from 'lucide-react';
+import { ACCENTS, THEMES } from '../utils/theme.js';
+
+const THEME_META = {
+  light: { label: 'Light', icon: Sun },
+  dark:  { label: 'Dark',  icon: Moon },
+  oled:  { label: 'OLED',  icon: Circle },
+};
 
 /**
- * Global settings modal with two tabs:
- *   - Print: darkness, speed, X/Y offset
- *   - Display: screen DPI calibration
- *
- * All values persist to IndexedDB settings store immediately on change.
+ * Global settings modal. Tabs: Print, Display, Appearance.
+ * Values persist to IndexedDB on change via the callbacks wired in App.
  */
 export default function Settings({
   darkness,
@@ -14,11 +18,15 @@ export default function Settings({
   xOffset,
   yOffset,
   screenDPI,
+  theme,
+  accent,
   onChangeDarkness,
   onChangeSpeed,
   onChangeXOffset,
   onChangeYOffset,
   onCalibrationDone,
+  onChangeTheme,
+  onChangeAccent,
   onClose,
 }) {
   const [tab, setTab] = useState('print');
@@ -29,6 +37,8 @@ export default function Settings({
   const onBackdropClick = (e) => {
     if (e.target === e.currentTarget) onClose();
   };
+
+  const selectedAccent = ACCENTS.find(a => a.id === accent) ?? ACCENTS[0];
 
   return (
     <div className="cal-backdrop" onClick={onBackdropClick}>
@@ -54,6 +64,13 @@ export default function Settings({
             onClick={() => setTab('display')}
           >
             Display
+          </button>
+          <button
+            type="button"
+            className={`settings-tab ${tab === 'appearance' ? 'active' : ''}`}
+            onClick={() => setTab('appearance')}
+          >
+            Appearance
           </button>
         </div>
 
@@ -165,6 +182,58 @@ export default function Settings({
               >
                 Apply
               </button>
+            </div>
+          </div>
+        )}
+
+        {tab === 'appearance' && (
+          <div className="settings-body">
+            <div className="appearance-section">
+              <span className="settings-label">Theme</span>
+              <div className="theme-segmented" role="radiogroup" aria-label="Theme">
+                {THEMES.map(t => {
+                  const meta = THEME_META[t];
+                  const Icon = meta.icon;
+                  const active = theme === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`theme-option ${active ? 'active' : ''}`}
+                      onClick={() => onChangeTheme(t)}
+                    >
+                      <Icon size={14} />
+                      <span>{meta.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="settings-divider" />
+
+            <div className="appearance-section">
+              <span className="settings-label">Accent</span>
+              <div className="accent-swatches" role="radiogroup" aria-label="Accent colour">
+                {ACCENTS.map(a => {
+                  const active = accent === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      aria-label={a.name}
+                      className={`accent-swatch ${active ? 'active' : ''}`}
+                      style={{ '--swatch-color': a.value }}
+                      onClick={() => onChangeAccent(a.id)}
+                    />
+                  );
+                })}
+              </div>
+              <span className="accent-name">{selectedAccent.name}</span>
             </div>
           </div>
         )}

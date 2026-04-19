@@ -40,6 +40,15 @@ import {
   deletePatternFromDB,
 } from '../utils/storage.js';
 import { loadScreenDPI, saveScreenDPI } from '../utils/calibration.js';
+import {
+  DEFAULT_THEME,
+  DEFAULT_ACCENT,
+  applyTheme,
+  loadTheme,
+  loadAccent,
+  saveTheme,
+  saveAccent,
+} from '../utils/theme.js';
 import './studio.css';
 
 const DEFAULT_BIGTEXT = {
@@ -244,6 +253,14 @@ export default function App() {
   const [speed, setSpeed] = useState(1);
   const [xOffset, setXOffset] = useState(27);  // dots (GW p1, empirically tuned default)
   const [yOffset, setYOffset] = useState(0);    // dots
+
+  // ── Appearance (theme + accent) ──────────────────────────────────────────
+  // Defaults match the pre-JS CSS root so the first paint after a cold load
+  // matches the persisted selection for anyone on the default OLED/zebra
+  // combo. The index.html pre-paint script applies those defaults to <html>
+  // before React mounts to keep the flash to zero.
+  const [theme, setTheme] = useState(DEFAULT_THEME);
+  const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const dropdownPresets = useMemo(() => buildDropdownList(presets), [presets]);
   const [saveStatus, setSaveStatus] = useState(null);   // null | 'saved' | {error}
   const [focusTextNonce, setFocusTextNonce] = useState(0);
@@ -515,6 +532,18 @@ export default function App() {
     setYOffset(v);
     saveSetting('yOffset', v).catch(err => console.warn('Failed to save yOffset:', err));
   }, []);
+
+  const handleThemeChange = useCallback((t) => {
+    setTheme(t);
+    applyTheme(t, accent);
+    saveTheme(t).catch(err => console.warn('Failed to save theme:', err));
+  }, [accent]);
+
+  const handleAccentChange = useCallback((a) => {
+    setAccent(a);
+    applyTheme(theme, a);
+    saveAccent(a).catch(err => console.warn('Failed to save accent:', err));
+  }, [theme]);
 
   // ── Label-size presets ────────────────────────────────────────────────────
   const handleAddPreset = useCallback(async (label, widthInches, heightInches) => {
@@ -969,6 +998,19 @@ export default function App() {
       if (loadedSpeed !== null) setSpeed(loadedSpeed);
       if (loadedXOffset !== null) setXOffset(loadedXOffset);
       if (loadedYOffset !== null) setYOffset(loadedYOffset);
+
+      // Appearance — load theme + accent and apply to <html>. Pre-paint
+      // defaults are already on the root so the first paint is correct;
+      // this swaps in the user's saved choice once IndexedDB resolves.
+      try {
+        const [t, a] = await Promise.all([loadTheme(), loadAccent()]);
+        if (cancelled) return;
+        setTheme(t);
+        setAccent(a);
+        applyTheme(t, a);
+      } catch (err) {
+        console.warn('Failed to load appearance:', err);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -1277,11 +1319,15 @@ export default function App() {
           xOffset={xOffset}
           yOffset={yOffset}
           screenDPI={screenDPI}
+          theme={theme}
+          accent={accent}
           onChangeDarkness={handleDarknessChange}
           onChangeSpeed={handleSpeedChange}
           onChangeXOffset={handleXOffsetChange}
           onChangeYOffset={handleYOffsetChange}
           onCalibrationDone={handleCalibrationDone}
+          onChangeTheme={handleThemeChange}
+          onChangeAccent={handleAccentChange}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -1318,7 +1364,7 @@ export default function App() {
       )}
       <div style={{
         position: 'fixed', bottom: 8, left: 8,
-        fontSize: 11, color: '#666', pointerEvents: 'none',
+        fontSize: 11, color: 'var(--text-muted)', pointerEvents: 'none',
         zIndex: 9999, userSelect: 'none',
       }}>
         <span
@@ -1327,7 +1373,7 @@ export default function App() {
             cursor: 'pointer',
             pointerEvents: 'auto',
             padding: '2px 1px',
-            color: demoMode ? '#FED00A' : 'inherit',
+            color: demoMode ? 'var(--accent)' : 'inherit',
           }}
         >v</span>{__APP_VERSION__}
       </div>

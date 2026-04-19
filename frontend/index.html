@@ -23,6 +23,19 @@
     <meta property="og:type" content="website" />
     <meta property="og:image" content="/favicon-512.png" />
     <meta property="og:url" content="https://github.com/nastronot/sticky-icky" />
+
+    <script>
+      // Pre-paint theme bootstrap: applies the default theme + accent classes
+      // to <html> synchronously so the first paint has correct surfaces. The
+      // async IndexedDB read in App.jsx swaps in the user's saved choice if
+      // it differs — those defaults match the :root fallback in studio.css,
+      // so the pre-load look never flashes for anyone on the default combo.
+      (function () {
+        var el = document.documentElement;
+        el.classList.add('theme-oled');
+        el.classList.add('accent-zebra-yellow');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

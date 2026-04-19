@@ -197,16 +197,17 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         if (overlay.height !== labelH) overlay.height = labelH;
         const octx = overlay.getContext('2d');
         octx.clearRect(0, 0, overlay.width, overlay.height);
+        const accent = readAccentColor(overlay);
         if (cropMode) {
           const cropLayer = layers.find(l => l.id === cropMode.layerId);
           if (cropLayer?.type === 'image' && cropLayer.originalImage) {
-            drawCropChrome(octx, cropLayer, cropMode.rect);
+            drawCropChrome(octx, cropLayer, cropMode.rect, accent);
           }
         } else {
           const sel = layers.find(l => l.id === selectedLayerId);
           if (sel?.visible) {
-            if (isLineShape(sel)) drawLineSelectionChrome(octx, sel);
-            else if (isBBoxInteractable(sel)) drawSelectionChrome(octx, sel);
+            if (isLineShape(sel)) drawLineSelectionChrome(octx, sel, accent);
+            else if (isBBoxInteractable(sel)) drawSelectionChrome(octx, sel, accent);
           }
         }
       }
@@ -699,7 +700,17 @@ function hitCropHandle(pt, r) {
   return null;
 }
 
-function drawCropChrome(ctx, layer, imageRect) {
+// Read --accent off the canvas element so chrome colour tracks the live
+// theme without plumbing a React prop through every draw call.
+function readAccentColor(el) {
+  try {
+    const v = getComputedStyle(el).getPropertyValue('--accent').trim();
+    if (v) return v;
+  } catch { /* computed style can fail before the element is in the DOM */ }
+  return '#FED00A';
+}
+
+function drawCropChrome(ctx, layer, imageRect, accent) {
   const r = cropImageRectToCanvas(layer, imageRect);
 
   // Dim the area outside the crop rect with a translucent black mask. Drawn
@@ -712,10 +723,8 @@ function drawCropChrome(ctx, layer, imageRect) {
   ctx.fill('evenodd');
   ctx.restore();
 
-  // Bright dashed crop outline (brand yellow accent — matches the rest
-  // of the UI's selection / focus chrome)
   ctx.save();
-  ctx.strokeStyle = '#FED00A';
+  ctx.strokeStyle = accent;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([6, 4]);
   ctx.strokeRect(r.x, r.y, r.w, r.h);
@@ -730,7 +739,7 @@ function drawCropChrome(ctx, layer, imageRect) {
     [r.x, r.y + r.h], [r.x, cy],
   ];
   ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#FED00A';
+  ctx.strokeStyle = accent;
   for (const [x, y] of handles) {
     ctx.beginPath();
     ctx.rect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
@@ -745,11 +754,11 @@ function drawCropChrome(ctx, layer, imageRect) {
 /** Selection chrome for a line-shape layer: a faint outline along the line
  *  and filled handles at both endpoints. No rotation / bounding-box chrome,
  *  since geometry is fully described by two points + thickness. */
-function drawLineSelectionChrome(ctx, layer) {
+function drawLineSelectionChrome(ctx, layer, accent) {
   const corners = lineCornerPoints(layer.x1, layer.y1, layer.x2, layer.y2, Math.max(1, layer.thickness ?? 2));
 
   ctx.save();
-  ctx.strokeStyle = '#FED00A';
+  ctx.strokeStyle = accent;
   ctx.lineWidth = 1;
 
   if (corners) {
@@ -772,7 +781,7 @@ function drawLineSelectionChrome(ctx, layer) {
   ctx.restore();
 }
 
-function drawSelectionChrome(ctx, layer) {
+function drawSelectionChrome(ctx, layer, accent) {
   const cx = layer.x + layer.width / 2;
   const cy = layer.y + layer.height / 2;
 
@@ -780,9 +789,7 @@ function drawSelectionChrome(ctx, layer) {
   ctx.translate(cx, cy);
   ctx.rotate((layer.rotation * Math.PI) / 180);
 
-  // Bounding box outline (brand yellow accent — matches the rest of the
-  // UI's selection / focus chrome).
-  ctx.strokeStyle = '#FED00A';
+  ctx.strokeStyle = accent;
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 3]);
   ctx.strokeRect(-layer.width / 2, -layer.height / 2, layer.width, layer.height);
@@ -797,7 +804,7 @@ function drawSelectionChrome(ctx, layer) {
   // Resize handles.
   const handles = handleLocalPoints(layer);
   ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#FED00A';
+  ctx.strokeStyle = accent;
   for (const [name, p] of Object.entries(handles)) {
     if (name === 'rotate') continue;
     ctx.beginPath();

@@ -158,8 +158,16 @@ Both apps are containerized and deployed to a Synology NAS.
 - **Drag-and-drop image files** anywhere in the studio.
 - **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; calibration via Settings modal).
 - **Label-size presets**: stored in IndexedDB (`sticky_icky.presets`). Shape: `{ id, label, w, h, favorite }`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
-- **Global settings**: darkness, speed, xOffset, yOffset, screenDPI — stored in IndexedDB `settings` store. Edited via the Settings modal (gear icon in the View button group). These are global, not per-preset.
-- **Settings modal**: tabbed (Print / Display). Print tab: darkness slider, speed slider, X/Y offset inputs in dots. Display tab: screen DPI calibration with ruler drag UI.
+- **Global settings**: darkness, speed, xOffset, yOffset, screenDPI, theme, accent — stored in IndexedDB `settings` store. Edited via the Settings modal (gear icon in the View button group). These are global, not per-preset.
+- **Settings modal**: tabbed (Print / Display / Appearance). Print tab: darkness slider, speed slider, X/Y offset inputs in dots. Display tab: screen DPI calibration with ruler drag UI. Appearance tab: theme segmented control (Light / Dark / OLED) and accent swatch grid (7 accents).
+- **Theme system** (`utils/theme.js` + `components/studio.css`):
+  - Three themes: `light`, `dark`, `oled`. Seven accents: `zebra-yellow` (default), `hot-magenta`, `cyber-cyan`, `acid-lime`, `blaze-orange`, `riot-purple`, `siren-red`. Stored as `theme` and `accent` keys in the IndexedDB `settings` store — no DB version bump because the store is key-value.
+  - Applied by adding `theme-<name>` + `accent-<id>` classes to `<html>`. Theme class sets surfaces + text tokens; accent class sets `--accent` and `--accent-fg`. `--accent-hover` is derived via `color-mix(in srgb, var(--accent), white 15%)` so it adapts to whichever accent is active.
+  - CSS tokens: `--bg-app` (page), `--bg-panel` (sidebars + modals), `--bg-studio` (canvas area — OLED uses `#141414` to give pure-black stickers visible edges against the otherwise `#000000` chrome), `--bg-elevated` (inputs, cards, dropdowns), `--bg-hover`, `--border`, `--border-subtle`, `--text-primary`/`-secondary`/`-muted`, `--accent`, `--accent-hover`, `--accent-fg`, `--accent-glow` (color-mixed), `--favorite-bg` (color-mixed), `--danger` (`#D00B14`, fixed across all themes, never remapped to accent).
+  - Siren Red is an accent, `--danger` is the brand red — they're distinct hexes (`#FF1744` vs `#D00B14`). Delete/error UI always uses `--danger`.
+  - Flash-of-unthemed-content avoidance: `index.html` has a tiny pre-paint script that adds the default classes (`theme-oled accent-zebra-yellow`) to `<html>` synchronously. `:root` in `studio.css` also defines the default token values directly, so even before the script runs the first paint is correct. App.jsx then loads the persisted choice from IndexedDB and swaps classes if needed.
+  - Canvas-drawn chrome (selection handles, crop rect in `CanvasPreview.jsx`) reads `--accent` off the canvas element via `getComputedStyle` at draw time so it tracks the live theme without a prop.
+  - To add a new accent: append an entry to `ACCENTS` in `utils/theme.js` with `id`, `name`, `value`, `fg`, and add a matching `.accent-<id> { --accent: …; --accent-fg: …; }` rule in `studio.css`. To add a new theme: append the id to `THEMES` in `utils/theme.js` and an icon lookup in `Settings.jsx`, plus a `.theme-<id> { … }` block with the full token set.
 - **Fonts**: Google Fonts collection (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
 
 ---
@@ -172,7 +180,7 @@ Both apps are containerized and deployed to a Synology NAS.
 | Canvas        | HTML5 Canvas API (no Konva — that's spec leftovers) |
 | Icons         | lucide-react                                        |
 | Dithering     | Hand-rolled in `src/utils/dither.js`                |
-| Storage       | IndexedDB (`sticky_icky` db v3) — designs, presets, settings, patterns |
+| Storage       | IndexedDB (`sticky_icky` db v3) — designs, presets, settings (theme/accent/screenDPI/print settings), patterns |
 | Backend       | FastAPI + pyserial                                  |
 | Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1, rtscts=True)` |
 

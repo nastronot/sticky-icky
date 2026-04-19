@@ -15,7 +15,6 @@ Sticky Icky — browser-based design tool for the Zebra LP2844 thermal printer. 
 
 - **Remote**: `git@github-nastronot:nastronot/sticky-icky.git` (SSH alias — see `~/.ssh/config` for host mapping)
 - **Owner / author**: `nastronot <nastronot@proton.me>` (local git config, not global)
-- **Previous identity**: project was renamed from `sticky-zebra` and the history was rewritten under the new identity. A `backup-pre-scrub` branch preserves the pre-rewrite commits locally but should never be pushed.
 
 ---
 

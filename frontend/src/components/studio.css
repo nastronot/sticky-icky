@@ -24,7 +24,7 @@
 /* Themes — each class defines the full surface + text token set. Default
    to OLED so the first paint before JS boots still looks right. */
 
-.theme-light {
+html.theme-light {
   --bg-app:        #F5F5F5;
   --bg-panel:      #FFFFFF;
   --bg-studio:     #E8E8E8;
@@ -38,7 +38,7 @@
   color-scheme: light;
 }
 
-.theme-dark {
+html.theme-dark {
   --bg-app:        #1A1A1A;
   --bg-panel:      #242424;
   --bg-studio:     #2A2A2A;
@@ -52,7 +52,7 @@
   color-scheme: dark;
 }
 
-.theme-oled {
+html.theme-oled {
   --bg-app:        #000000;
   --bg-panel:      #000000;
   /* Studio sits between --bg-elevated (#0F0F0F) and --bg-hover (#1A1A1A) —
@@ -74,13 +74,15 @@
    via color-mix so each accent gets a consistent lighten-on-hover without
    per-accent bookkeeping. */
 
-.accent-zebra-yellow { --accent: #FED00A; --accent-fg: #000000; }
-.accent-hot-magenta  { --accent: #FF2E93; --accent-fg: #000000; }
-.accent-cyber-cyan   { --accent: #00E5FF; --accent-fg: #000000; }
-.accent-acid-lime    { --accent: #C6FF00; --accent-fg: #000000; }
-.accent-blaze-orange { --accent: #FF6B1A; --accent-fg: #000000; }
-.accent-riot-purple  { --accent: #B026FF; --accent-fg: #FFFFFF; }
-.accent-siren-red    { --accent: #FF1744; --accent-fg: #FFFFFF; }
+/* html prefix bumps specificity to (0,1,1) so these beat the :root (0,1,0)
+   default block below regardless of source order. */
+html.accent-zebra-yellow { --accent: #FED00A; --accent-fg: #000000; }
+html.accent-hot-magenta  { --accent: #FF2E93; --accent-fg: #000000; }
+html.accent-cyber-cyan   { --accent: #00E5FF; --accent-fg: #000000; }
+html.accent-acid-lime    { --accent: #C6FF00; --accent-fg: #000000; }
+html.accent-blaze-orange { --accent: #FF6B1A; --accent-fg: #000000; }
+html.accent-riot-purple  { --accent: #B026FF; --accent-fg: #FFFFFF; }
+html.accent-siren-red    { --accent: #FF1744; --accent-fg: #FFFFFF; }
 
 :root {
   --accent-hover: color-mix(in srgb, var(--accent), white 15%);

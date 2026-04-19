@@ -499,23 +499,6 @@ html.accent-graphite     { --accent: #8A8A8A; --accent-fg: #000000; }
   letter-spacing: 0.05em;
 }
 
-.layer-stack-label {
-  padding: 2px 14px;
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  opacity: 0.6;
-}
-
-.layer-stack-label.top {
-  padding-top: 6px;
-}
-
-.layer-stack-label.bottom {
-  padding-bottom: 4px;
-}
-
 .layer-list {
   flex: 1;
   list-style: none;

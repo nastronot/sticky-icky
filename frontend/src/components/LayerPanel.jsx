@@ -101,7 +101,6 @@ export default function LayerPanel({
         <span>Layers</span>
       </div>
 
-      <div className="layer-stack-label top">Front</div>
       <ul
         className="layer-list"
         onDragOver={onListDragOver}
@@ -156,7 +155,6 @@ export default function LayerPanel({
         })}
         {insertIdx === 0 && <div className="layer-insert-bar" />}
       </ul>
-      <div className="layer-stack-label bottom">Back</div>
 
       <div className="layer-add">
         <span className="layer-add-label">Add layer</span>

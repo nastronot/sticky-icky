@@ -19,6 +19,8 @@ export const ACCENTS = [
   { id: 'blaze-orange', name: 'Blaze Orange', value: '#FF6B1A', fg: '#000000' },
   { id: 'riot-purple',  name: 'Riot Purple',  value: '#B026FF', fg: '#FFFFFF' },
   { id: 'siren-red',    name: 'Siren Red',    value: '#FF1744', fg: '#FFFFFF' },
+  { id: 'royal-blue',   name: 'Royal Blue',   value: '#2962FF', fg: '#FFFFFF' },
+  { id: 'graphite',     name: 'Graphite',     value: '#8A8A8A', fg: '#000000' },
 ];
 export const DEFAULT_ACCENT = 'zebra-yellow';
 

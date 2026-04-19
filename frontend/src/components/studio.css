@@ -55,11 +55,11 @@ html.theme-dark {
 html.theme-oled {
   --bg-app:        #000000;
   --bg-panel:      #000000;
-  /* Studio sits between --bg-elevated (#0F0F0F) and --bg-hover (#1A1A1A) —
-     a pure black sticker would vanish against #000000, which is the whole
-     OLED bug. #141414 gives a ~8% luminance lift against the black panel
-     chrome so sticker edges are visible, while still reading as OLED-dark. */
-  --bg-studio:     #141414;
+  /* Studio sits just above --bg-elevated (#0F0F0F) — a pure black sticker
+     vanishes against #000000 (the OLED invisibility bug); #101010 gives the
+     minimum luminance lift needed to see sticker edges against the otherwise
+     pure-black panel chrome, while still reading as OLED-dark. */
+  --bg-studio:     #101010;
   --bg-elevated:   #0F0F0F;
   --bg-hover:      #1A1A1A;
   --border:        #2A2A2A;
@@ -83,6 +83,8 @@ html.accent-acid-lime    { --accent: #C6FF00; --accent-fg: #000000; }
 html.accent-blaze-orange { --accent: #FF6B1A; --accent-fg: #000000; }
 html.accent-riot-purple  { --accent: #B026FF; --accent-fg: #FFFFFF; }
 html.accent-siren-red    { --accent: #FF1744; --accent-fg: #FFFFFF; }
+html.accent-royal-blue   { --accent: #2962FF; --accent-fg: #FFFFFF; }
+html.accent-graphite     { --accent: #8A8A8A; --accent-fg: #000000; }
 
 :root {
   --accent-hover: color-mix(in srgb, var(--accent), white 15%);
@@ -93,7 +95,7 @@ html.accent-siren-red    { --accent: #FF1744; --accent-fg: #FFFFFF; }
 :root {
   --bg-app:        #000000;
   --bg-panel:      #000000;
-  --bg-studio:     #141414;
+  --bg-studio:     #101010;
   --bg-elevated:   #0F0F0F;
   --bg-hover:      #1A1A1A;
   --border:        #2A2A2A;

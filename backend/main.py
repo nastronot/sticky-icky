@@ -13,7 +13,11 @@ from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI()
+# Disable FastAPI's /docs, /redoc, and /openapi.json. This backend exposes a
+# single endpoint (/print) behind authenticated reverse-proxy access; the
+# schema browser isn't useful for anyone and shouldn't be part of the
+# public attack surface.
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.state.limiter = limiter
 
 

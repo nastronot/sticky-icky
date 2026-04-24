@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { Bold } from 'lucide-react';
 import PatternPicker from './PatternPicker.jsx';
 import {
   ADDRESS_MAX_LINES,
@@ -135,6 +136,24 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
           ))}
         </select>
       </label>
+
+      <div className="control-group">
+        <span>Weight</span>
+        <div className="btn-group">
+          <button
+            className={layer.bold ? 'active' : ''}
+            onClick={() => set({ bold: true })}
+            title="Bold"
+            aria-label="Bold"
+          ><Bold size={16} /></button>
+          <button
+            className={!layer.bold ? 'active' : ''}
+            onClick={() => set({ bold: false })}
+            title="Regular"
+            aria-label="Regular weight"
+          >R</button>
+        </div>
+      </div>
 
       <label className="control-group">
         <span>Size <em>{sizePercent}%{autoFitHint}</em></span>

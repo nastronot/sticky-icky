@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   Eye, EyeOff, Copy, Trash2, Plus,
-  RotateCw, RotateCcw, FilePlus, Save, FolderOpen, Printer,
+  RotateCw, RotateCcw, File, Save, FolderOpen, Printer,
   Maximize2, Minimize2, Settings2, Square, Circle, Hexagon,
   Star, Minus, Pencil,
 } from 'lucide-react';
@@ -288,7 +288,7 @@ export default function LayerPanel({
           <span>File</span>
           <div className="btn-group">
             <button type="button" className="secondary-btn" onClick={onNew} title="New" aria-label="New">
-              <FilePlus size={16} />
+              <File size={16} />
             </button>
             <button type="button" className="secondary-btn" onClick={onSave} title="Save" aria-label="Save">
               <Save size={16} />

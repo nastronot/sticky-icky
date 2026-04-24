@@ -118,6 +118,16 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
       </label>
 
       <label className="control-group">
+        <span>Postcrossing ID</span>
+        <input
+          type="text"
+          value={layer.postcrossingId ?? ''}
+          onChange={e => set({ postcrossingId: e.target.value })}
+          placeholder="Optional — e.g. US-1234567"
+        />
+      </label>
+
+      <label className="control-group">
         <span>Font</span>
         <select value={layer.font} onChange={e => set({ font: e.target.value })}>
           {FONTS.map(f => (

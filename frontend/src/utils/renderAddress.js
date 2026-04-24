@@ -15,6 +15,17 @@ export function splitAddressLines(text) {
   return text.split('\n').slice(0, ADDRESS_MAX_LINES);
 }
 
+/** Build the full renderable line list for a layer: capped address lines, plus
+ *  an optional blank-line + Postcrossing ID suffix when the ID is non-empty.
+ *  Used by both the renderer and the auto-fit measurement so both see the
+ *  same block the user ends up printing. */
+export function buildAddressRenderLines(layer) {
+  const lines = splitAddressLines(layer.text);
+  const pc = (layer.postcrossingId ?? '').trim();
+  if (!pc) return lines;
+  return [...lines, '', pc];
+}
+
 /** Binary-search the largest font size where every line fits within maxW and
  *  the whole block fits within maxH. Returns null if bounds are degenerate. */
 function fitAddress(ctx, lines, font, bold, italic, maxW, maxH) {
@@ -54,7 +65,7 @@ function fitAddress(ctx, lines, font, bold, italic, maxW, maxH) {
 export function measureAddressFit(layer) {
   if (!MEASURE_CANVAS) return null;
   const ctx = MEASURE_CANVAS.getContext('2d');
-  const lines = splitAddressLines(layer.text);
+  const lines = buildAddressRenderLines(layer);
   return fitAddress(ctx, lines, layer.font, !!layer.bold, !!layer.italic, layer.width, layer.height);
 }
 
@@ -68,13 +79,13 @@ export async function renderAddressLayer(canvas, layer) {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const { text, font, bold, italic, sizeScale, fillPattern, invert, ditherAlgo, ditherAmount } = layer;
+  const { font, bold, italic, sizeScale, fillPattern, invert, ditherAlgo, ditherAmount } = layer;
   const { x, y, width: W, height: H, rotation } = layer;
   if (W <= 0 || H <= 0) return;
 
   await document.fonts.load(`${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}40px "${font}"`);
 
-  const lines = splitAddressLines(text);
+  const lines = buildAddressRenderLines(layer);
   const hasText = lines.some(l => l.length > 0);
 
   const cx = x + W / 2;

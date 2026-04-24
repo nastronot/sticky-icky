@@ -136,6 +136,7 @@ function makeAddressLayer(labelW, labelH) {
     name: `Address ${n}`,
     visible: true,
     text: '',
+    postcrossingId: '',
     font: 'Arial Black',
     bold: false,
     italic: false,

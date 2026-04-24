@@ -1,4 +1,4 @@
-fastapi
-uvicorn
-pyserial
-slowapi
+fastapi==0.135.3
+uvicorn==0.42.0
+pyserial==3.5
+slowapi==0.1.9

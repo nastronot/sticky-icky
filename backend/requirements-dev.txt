@@ -4,5 +4,5 @@
 #
 # Then run:
 #   pytest
-pytest
-httpx
+pytest==9.0.3
+httpx==0.28.1

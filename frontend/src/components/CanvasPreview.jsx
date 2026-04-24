@@ -432,23 +432,24 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       const pt = screenToCanvas(e);
       const ls = layersRef.current;
 
-      // Hit-test image/text/address layers top-down (same as pointerdown).
+      // Hit-test image/text layers top-down (same as pointerdown).
       for (let i = ls.length - 1; i >= 0; i--) {
         const layer = ls[i];
         if (!layer.visible) continue;
-        if (layer.type !== 'image' && layer.type !== 'text' && layer.type !== 'address') continue;
+        if (layer.type !== 'image' && layer.type !== 'text') continue;
         if (hitBody(pt, layer)) {
           onSelectLayer(layer.id);
-          if (layer.type === 'text' || layer.type === 'address') onRequestFocusText?.();
+          if (layer.type === 'text') onRequestFocusText?.();
           return;
         }
       }
-      // No image/text hit — fall back to the topmost visible Big Text. This
-      // makes Big Text "double-click anywhere to edit" since it doesn't
-      // participate in pointer hit-testing.
+      // No image/text hit — fall back to the topmost visible Big Text or
+      // Address layer. Both fill the full label with no bounding box of
+      // their own, so "double-click anywhere to edit" is the only way to
+      // grab them from the canvas.
       for (let i = ls.length - 1; i >= 0; i--) {
         const layer = ls[i];
-        if (layer.visible && layer.type === 'bigtext') {
+        if (layer.visible && (layer.type === 'bigtext' || layer.type === 'address')) {
           onSelectLayer(layer.id);
           onRequestFocusText?.();
           return;
@@ -518,7 +519,7 @@ export default CanvasPreview;
  *  handles. Image, Text, legacy Fill, and every shape kind except 'line'. */
 function isBBoxInteractable(layer) {
   if (!layer) return false;
-  if (layer.type === 'image' || layer.type === 'text' || layer.type === 'fill' || layer.type === 'address') return true;
+  if (layer.type === 'image' || layer.type === 'text' || layer.type === 'fill') return true;
   if (layer.type === 'shape' && layer.shapeKind !== 'line') return true;
   return false;
 }

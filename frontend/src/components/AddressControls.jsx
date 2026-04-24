@@ -4,7 +4,6 @@ import PatternPicker from './PatternPicker.jsx';
 import {
   ADDRESS_MAX_LINES,
   ADDRESS_MIN_SIZE_SCALE,
-  measureAddressFit,
   splitAddressLines,
 } from '../utils/renderAddress.js';
 
@@ -59,13 +58,6 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
     [layer.text],
   );
 
-  // Surface the auto-fit size next to the slider so the user sees what
-  // sizeScale=1.0 resolves to for the current bounds + text.
-  const autoFitSize = useMemo(() => {
-    const fit = measureAddressFit(layer);
-    return fit ? fit.size : null;
-  }, [layer]);
-
   const onTextKeyDown = (e) => {
     if (e.key !== 'Enter') return;
     if (lineCount < ADDRESS_MAX_LINES) return;
@@ -101,7 +93,6 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
 
   const sizeScale = layer.sizeScale ?? 1;
   const sizePercent = Math.round(sizeScale * 100);
-  const autoFitHint = autoFitSize != null ? ` (auto-fit: ${autoFitSize}px)` : '';
 
   return (
     <>
@@ -156,7 +147,7 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
       </div>
 
       <label className="control-group">
-        <span>Size <em>{sizePercent}%{autoFitHint}</em></span>
+        <span>Size <em>{sizePercent}%</em></span>
         <input
           type="range"
           min={Math.round(ADDRESS_MIN_SIZE_SCALE * 100)}

@@ -51,7 +51,14 @@ export default function SaveDialog({
       setOverwrite({ id: conflict.id, name: conflict.name });
       return;
     }
-    onSave({ id: loadedDesignId, name: trimmed, demoSafe });
+    // Save vs Save As: reuse the loaded design's id only when the name is
+    // unchanged (case-insensitive). A renamed save must create a new record so
+    // the original design is preserved in the gallery.
+    const sameName =
+      loadedDesignId &&
+      initialName.trim().toLowerCase() === trimmed.toLowerCase();
+    const targetId = sameName ? loadedDesignId : null;
+    onSave({ id: targetId, name: trimmed, demoSafe });
   };
 
   const confirmOverwrite = () => {

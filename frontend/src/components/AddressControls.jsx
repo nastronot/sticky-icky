@@ -115,7 +115,6 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
           type="text"
           value={layer.postcrossingId ?? ''}
           onChange={e => set({ postcrossingId: e.target.value })}
-          placeholder="Optional — e.g. US-1234567"
         />
       </label>
 

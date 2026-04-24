@@ -1,4 +1,5 @@
 import { deserializeDesign } from './storage.js';
+import { renderAddressLayer } from './renderAddress.js';
 import { renderBigTextLayer } from './renderBigText.js';
 import { renderImageLayer, makeDitherCache } from './renderImage.js';
 import { renderTextLayer } from './renderText.js';
@@ -53,6 +54,8 @@ export async function renderDesignToCanvas(design) {
     off.height = labelH;
     if (layer.type === 'bigtext') {
       await renderBigTextLayer(off, layer);
+    } else if (layer.type === 'address') {
+      await renderAddressLayer(off, layer);
     } else if (layer.type === 'image') {
       renderImageLayer(off, layer, ditherCache);
     } else if (layer.type === 'fill') {

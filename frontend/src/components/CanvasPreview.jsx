@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
+import { renderAddressLayer } from '../utils/renderAddress.js';
 import { renderBigTextLayer } from '../utils/renderBigText.js';
 import { renderImageLayer, makeDitherCache, pruneDitherCache } from '../utils/renderImage.js';
 import { renderTextLayer } from '../utils/renderText.js';
@@ -164,6 +165,8 @@ const CanvasPreview = forwardRef(function CanvasPreview(
 
         if (layer.type === 'bigtext') {
           await renderBigTextLayer(off, layer);
+        } else if (layer.type === 'address') {
+          await renderAddressLayer(off, layer);
         } else if (layer.type === 'image') {
           renderImageLayer(off, layer, ditherCache);
         } else if (layer.type === 'fill') {
@@ -429,14 +432,14 @@ const CanvasPreview = forwardRef(function CanvasPreview(
       const pt = screenToCanvas(e);
       const ls = layersRef.current;
 
-      // Hit-test image/text layers top-down (same as pointerdown).
+      // Hit-test image/text/address layers top-down (same as pointerdown).
       for (let i = ls.length - 1; i >= 0; i--) {
         const layer = ls[i];
         if (!layer.visible) continue;
-        if (layer.type !== 'image' && layer.type !== 'text') continue;
+        if (layer.type !== 'image' && layer.type !== 'text' && layer.type !== 'address') continue;
         if (hitBody(pt, layer)) {
           onSelectLayer(layer.id);
-          if (layer.type === 'text') onRequestFocusText?.();
+          if (layer.type === 'text' || layer.type === 'address') onRequestFocusText?.();
           return;
         }
       }
@@ -515,7 +518,7 @@ export default CanvasPreview;
  *  handles. Image, Text, legacy Fill, and every shape kind except 'line'. */
 function isBBoxInteractable(layer) {
   if (!layer) return false;
-  if (layer.type === 'image' || layer.type === 'text' || layer.type === 'fill') return true;
+  if (layer.type === 'image' || layer.type === 'text' || layer.type === 'fill' || layer.type === 'address') return true;
   if (layer.type === 'shape' && layer.shapeKind !== 'line') return true;
   return false;
 }

@@ -16,6 +16,7 @@ export default function LayerPanel({
   onAddBigText,
   onAddText,
   onAddImage,
+  onAddAddress,
   onAddShape,
   onToggleVisibility,
   onDelete,
@@ -162,6 +163,7 @@ export default function LayerPanel({
           <button type="button" onClick={onAddBigText}><Plus size={14} /> Big Text</button>
           <button type="button" onClick={onAddText}><Plus size={14} /> Text</button>
           <button type="button" onClick={handleAddImageClick}><Plus size={14} /> Image</button>
+          <button type="button" onClick={onAddAddress}><Plus size={14} /> Address</button>
         </div>
         <div className="layer-add-shape-row">
           <button

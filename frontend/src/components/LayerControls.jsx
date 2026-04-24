@@ -1,3 +1,4 @@
+import AddressControls from './AddressControls.jsx';
 import BigTextControls from './BigTextControls.jsx';
 import FillControls from './FillControls.jsx';
 import ImageControls from './ImageControls.jsx';
@@ -26,6 +27,9 @@ export default function LayerControls({
         )}
         {selectedLayer?.type === 'text' && (
           <TextControls layer={selectedLayer} onChange={onLayerChange} focusTextNonce={focusTextNonce} />
+        )}
+        {selectedLayer?.type === 'address' && (
+          <AddressControls layer={selectedLayer} onChange={onLayerChange} focusTextNonce={focusTextNonce} />
         )}
         {selectedLayer?.type === 'fill' && (
           <FillControls layer={selectedLayer} onChange={onLayerChange} />

@@ -121,6 +121,38 @@ function makeTextLayer(labelW, labelH) {
   };
 }
 
+let addressSeq = 0;
+/** Multi-line address layer. Auto-fits the largest font size that fits the
+ *  layer bounds, then scales by sizeScale (0.25..1, default 1 = auto-fit).
+ *  Lines are left-aligned within a block centered horizontally + vertically
+ *  in the layer bounds. Hard-capped at 7 lines (see ADDRESS_MAX_LINES). */
+function makeAddressLayer(labelW, labelH) {
+  const n = ++addressSeq;
+  const w = Math.max(40, Math.round(labelW * 0.7));
+  const h = Math.max(40, Math.round(labelH * 0.7));
+  return {
+    id: `address-${Date.now()}-${n}`,
+    type: 'address',
+    name: `Address ${n}`,
+    visible: true,
+    text: '',
+    font: 'Arial Black',
+    bold: false,
+    italic: false,
+    sizeScale: 1,
+    x: Math.round((labelW - w) / 2),
+    y: Math.round((labelH - h) / 2),
+    width: w,
+    height: h,
+    rotation: 0,
+    fillPattern: 'default-solid',
+    invert: false,
+    xor: true,
+    ditherAlgo: 'none',
+    ditherAmount: 50,
+  };
+}
+
 let shapeSeq = 0;
 const SHAPE_KIND_LABELS = {
   rectangle: 'Rectangle',
@@ -393,6 +425,12 @@ export default function App() {
 
   const addText = useCallback(() => {
     const layer = makeTextLayer(labelW, labelH);
+    setLayers(ls => [...ls, layer]);
+    setSelectedLayerId(layer.id);
+  }, [labelW, labelH]);
+
+  const addAddress = useCallback(() => {
+    const layer = makeAddressLayer(labelW, labelH);
     setLayers(ls => [...ls, layer]);
     setSelectedLayerId(layer.id);
   }, [labelW, labelH]);
@@ -1254,6 +1292,7 @@ export default function App() {
         onAddBigText={addBigText}
         onAddText={addText}
         onAddImage={addImage}
+        onAddAddress={addAddress}
         onAddShape={addShape}
         onToggleVisibility={toggleVisibility}
         onDelete={deleteLayer}

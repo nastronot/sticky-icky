@@ -246,3 +246,7 @@ https://github.com/chr15m/print-weather
 https://github.com/mazoqui/thermy
 
 https://github.com/HexaCubist/werewolf-receipt
+
+https://beyondloom.com/blog/dither.html
+
+https://surma.dev/things/ditherpunk/

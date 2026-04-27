@@ -32,7 +32,7 @@ function computeTrueSizeScale(screenDPI) {
  * interaction (drag, resize, rotate) for image layers.
  */
 const CanvasPreview = forwardRef(function CanvasPreview(
-  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText, cropMode = null, onUpdateCropRect, patterns = null },
+  { layers, labelW, labelH, viewportRotation = 0, trueSize = false, screenDPI = null, gammaCorrect = false, selectedLayerId, onSelectLayer, onPatchLayer, onRequestFocusText, cropMode = null, onUpdateCropRect, patterns = null },
   ref,
 ) {
   const isRotated = viewportRotation === 90;
@@ -115,6 +115,14 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     if (patterns) lastRenderedRef.current.clear();
   }, [patterns]);
 
+  // Gamma is a global studio setting — same invalidation story as patterns.
+  // Toggling it re-runs the dither/threshold pipeline for every image layer
+  // (the renderImage cache busts via its own gamma-aware signature) but the
+  // skip check above would otherwise short-circuit the redraw.
+  useEffect(() => {
+    lastRenderedRef.current.clear();
+  }, [gammaCorrect]);
+
   // ── Re-render layers + recomposite + redraw selection chrome ──────────────
   useEffect(() => {
     const visible = ref?.current;
@@ -168,7 +176,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
         } else if (layer.type === 'address') {
           await renderAddressLayer(off, layer);
         } else if (layer.type === 'image') {
-          renderImageLayer(off, layer, ditherCache);
+          renderImageLayer(off, layer, ditherCache, gammaCorrect);
         } else if (layer.type === 'fill') {
           renderFillLayer(off, layer);
         } else if (layer.type === 'shape') {
@@ -217,7 +225,7 @@ const CanvasPreview = forwardRef(function CanvasPreview(
     })();
 
     return () => { cancelled = true; };
-  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode, onPatchLayer, patterns]);
+  }, [layers, labelW, labelH, ref, selectedLayerId, isRotated, trueSize, screenDPI, cropMode, onPatchLayer, patterns, gammaCorrect]);
 
   // ── Pointer interaction ───────────────────────────────────────────────────
   // We attach handlers once, reading current state through refs to avoid

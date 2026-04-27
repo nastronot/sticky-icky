@@ -6,6 +6,9 @@
 // return new RGBA out) — those are kept for the existing tests and for any
 // future image-import dithering pipeline.
 
+import { SRGB_TO_LINEAR_LUT } from './gamma.js';
+import { riemersmaDither } from './riemersma.js';
+
 // Standard Bayer ordered-dither matrices, values 0..n²-1.
 export const BAYER_4 = [
    0,  8,  2, 10,
@@ -97,15 +100,40 @@ export function applyErrorDiffusion(data, width, height, kernel, amount) {
   }
 }
 
-/** Dispatch to the chosen algorithm. `amount` is 0..100. */
+/** Riemersma (Hilbert-curve) dither for the sidebar pipeline. Same lifted-black
+ *  trick as applyErrorDiffusion so `amount` produces a visible result on the
+ *  near-binary text rasters this path operates on. */
+export function applyRiemersmaDither(data, width, height, amount) {
+  if (amount <= 0) return;
+  const liftedBlack = amount * 128;
+  const buf = new Float32Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    buf[i] = data[i * 4] < 128 ? liftedBlack : 255;
+  }
+  riemersmaDither(buf, width, height, 128, 1);
+  for (let i = 0; i < width * height; i++) {
+    const v = buf[i] < 128 ? 0 : 255;
+    data[i * 4] = v;
+    data[i * 4 + 1] = v;
+    data[i * 4 + 2] = v;
+  }
+}
+
+/** Dispatch to the chosen algorithm. `amount` is 0..100. The two pipelines
+ *  in the codebase grew up with mismatched IDs ('floyd' here vs
+ *  'floydSteinberg' in ditherImage) — accept both so layer dropdowns can
+ *  share a single naming convention without silently no-op'ing on a layer
+ *  that happened to inherit the other id. */
 export function applyDither(data, width, height, algo, amount) {
   if (algo === 'none' || amount <= 0) return;
   const a = amount / 100;
   switch (algo) {
-    case 'bayer4':   return applyBayerDither(data, width, height, BAYER_4, 4, a);
-    case 'bayer8':   return applyBayerDither(data, width, height, BAYER_8, 8, a);
-    case 'floyd':    return applyErrorDiffusion(data, width, height, FLOYD_KERNEL, a);
-    case 'atkinson': return applyErrorDiffusion(data, width, height, ATKINSON_KERNEL, a);
+    case 'bayer4':         return applyBayerDither(data, width, height, BAYER_4, 4, a);
+    case 'bayer8':         return applyBayerDither(data, width, height, BAYER_8, 8, a);
+    case 'floyd':
+    case 'floydSteinberg': return applyErrorDiffusion(data, width, height, FLOYD_KERNEL, a);
+    case 'atkinson':       return applyErrorDiffusion(data, width, height, ATKINSON_KERNEL, a);
+    case 'riemersma':      return applyRiemersmaDither(data, width, height, a);
     default: return;
   }
 }
@@ -117,18 +145,37 @@ export function applyDither(data, width, height, algo, amount) {
 // converts to grayscale, applies a brightness threshold, and runs the chosen
 // dithering algorithm — returning a fresh ImageData. Algorithm names match
 // the image-layer dropdown:
-//   'none' | 'bayer4' | 'bayer8' | 'floydSteinberg' | 'atkinson'
+//   'none' | 'bayer4' | 'bayer8' | 'floydSteinberg' | 'atkinson' | 'riemersma'
+//
+// Gamma flag (default false): when true, the per-channel sRGB bytes are
+// linearised before luma + thresholding so midtones are perceptually
+// correct. The user-facing `threshold` parameter stays in sRGB byte space
+// and is mapped through the same LUT before comparison.
 
-export function ditherImage(originalImageData, algo, amount, threshold) {
+export function ditherImage(originalImageData, algo, amount, threshold, gamma = false) {
   const { width, height } = originalImageData;
   const src = originalImageData.data;
   const N = width * height;
 
-  // Build grayscale buffer (Rec. 601 luma).
+  // Build grayscale buffer (Rec. 601 luma — applied to either raw sRGB or
+  // linearised channels depending on `gamma`).
   const gray = new Float32Array(N);
-  for (let i = 0; i < N; i++) {
-    gray[i] = 0.299 * src[i * 4] + 0.587 * src[i * 4 + 1] + 0.114 * src[i * 4 + 2];
+  if (gamma) {
+    const L = SRGB_TO_LINEAR_LUT;
+    for (let i = 0; i < N; i++) {
+      gray[i] = 0.299 * L[src[i * 4]] + 0.587 * L[src[i * 4 + 1]] + 0.114 * L[src[i * 4 + 2]];
+    }
+  } else {
+    for (let i = 0; i < N; i++) {
+      gray[i] = 0.299 * src[i * 4] + 0.587 * src[i * 4 + 1] + 0.114 * src[i * 4 + 2];
+    }
   }
+
+  // Linearise the user-facing threshold byte too so the slider's perceptual
+  // meaning stays consistent across the gamma toggle.
+  const cutoff = gamma
+    ? SRGB_TO_LINEAR_LUT[Math.max(0, Math.min(255, threshold | 0))]
+    : threshold;
 
   const out = new Uint8ClampedArray(N * 4);
   const a = Math.max(0, Math.min(1, amount / 100));
@@ -141,7 +188,7 @@ export function ditherImage(originalImageData, algo, amount, threshold) {
   }
 
   if (algo === 'none' || a === 0) {
-    for (let i = 0; i < N; i++) emit(i, gray[i] < threshold ? 0 : 255);
+    for (let i = 0; i < N; i++) emit(i, gray[i] < cutoff ? 0 : 255);
     return new ImageData(out, width, height);
   }
 
@@ -154,7 +201,7 @@ export function ditherImage(originalImageData, algo, amount, threshold) {
       for (let x = 0; x < width; x++) {
         const i = y * width + x;
         const t = (matrix[(y % size) * size + (x % size)] + 0.5) / denom - 0.5;
-        emit(i, gray[i] + t * scale < threshold ? 0 : 255);
+        emit(i, gray[i] + t * scale < cutoff ? 0 : 255);
       }
     }
     return new ImageData(out, width, height);
@@ -167,7 +214,7 @@ export function ditherImage(originalImageData, algo, amount, threshold) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
         const old = buf[idx];
-        const newVal = old < threshold ? 0 : 255;
+        const newVal = old < cutoff ? 0 : 255;
         buf[idx] = newVal;
         const err = (old - newVal) * a;
         for (const [dx, dy, w] of kernel) {
@@ -178,12 +225,19 @@ export function ditherImage(originalImageData, algo, amount, threshold) {
         }
       }
     }
-    for (let i = 0; i < N; i++) emit(i, buf[i] < threshold ? 0 : 255);
+    for (let i = 0; i < N; i++) emit(i, buf[i] < cutoff ? 0 : 255);
+    return new ImageData(out, width, height);
+  }
+
+  if (algo === 'riemersma') {
+    const buf = new Float32Array(gray);
+    riemersmaDither(buf, width, height, cutoff, a);
+    for (let i = 0; i < N; i++) emit(i, buf[i]);
     return new ImageData(out, width, height);
   }
 
   // Fallback: just threshold.
-  for (let i = 0; i < N; i++) emit(i, gray[i] < threshold ? 0 : 255);
+  for (let i = 0; i < N; i++) emit(i, gray[i] < cutoff ? 0 : 255);
   return new ImageData(out, width, height);
 }
 

@@ -281,6 +281,10 @@ export default function App() {
   const [speed, setSpeed] = useState(1);
   const [xOffset, setXOffset] = useState(27);  // dots (GW p1, empirically tuned default)
   const [yOffset, setYOffset] = useState(0);    // dots
+  // Gamma correction: when on, image-layer threshold + dither operate in
+  // linear-light space so midtones aren't skewed bright. Default off so
+  // pre-existing saved designs render byte-for-byte the same as before.
+  const [gammaCorrect, setGammaCorrect] = useState(false);
 
   // ── Appearance (theme + accent) ──────────────────────────────────────────
   // Defaults match the pre-JS CSS root so the first paint after a cold load
@@ -565,6 +569,11 @@ export default function App() {
   const handleYOffsetChange = useCallback((v) => {
     setYOffset(v);
     saveSetting('yOffset', v).catch(err => console.warn('Failed to save yOffset:', err));
+  }, []);
+
+  const handleGammaCorrectChange = useCallback((v) => {
+    setGammaCorrect(v);
+    saveSetting('gammaCorrect', v).catch(err => console.warn('Failed to save gammaCorrect:', err));
   }, []);
 
   const handleThemeChange = useCallback((t) => {
@@ -977,6 +986,7 @@ export default function App() {
       const loadedSpeed = await loadSetting('speed');
       let loadedXOffset = await loadSetting('xOffset');
       const loadedYOffset = await loadSetting('yOffset');
+      const loadedGammaCorrect = await loadSetting('gammaCorrect');
 
       // One-time migration: xOffset was stored under the old broken pipeline
       // where the value was divided by 8 before reaching GW. Now GW receives
@@ -1032,6 +1042,7 @@ export default function App() {
       if (loadedSpeed !== null) setSpeed(loadedSpeed);
       if (loadedXOffset !== null) setXOffset(loadedXOffset);
       if (loadedYOffset !== null) setYOffset(loadedYOffset);
+      if (loadedGammaCorrect !== null) setGammaCorrect(!!loadedGammaCorrect);
 
       // Appearance — load theme + accent and apply to <html>. Pre-paint
       // defaults are already on the root so the first paint is correct;
@@ -1272,6 +1283,7 @@ export default function App() {
         viewportRotation={viewportRotation}
         trueSize={trueSize}
         screenDPI={screenDPI}
+        gammaCorrect={gammaCorrect}
         selectedLayerId={selectedLayerId}
         onSelectLayer={setSelectedLayerId}
         onPatchLayer={(id, patch) => setLayers(ls => ls.map(l => (l.id === id ? { ...l, ...patch } : l)))}
@@ -1356,6 +1368,7 @@ export default function App() {
           screenDPI={screenDPI}
           theme={theme}
           accent={accent}
+          gammaCorrect={gammaCorrect}
           onChangeDarkness={handleDarknessChange}
           onChangeSpeed={handleSpeedChange}
           onChangeXOffset={handleXOffsetChange}
@@ -1363,6 +1376,7 @@ export default function App() {
           onCalibrationDone={handleCalibrationDone}
           onChangeTheme={handleThemeChange}
           onChangeAccent={handleAccentChange}
+          onChangeGammaCorrect={handleGammaCorrectChange}
           onClose={() => setSettingsOpen(false)}
         />
       )}

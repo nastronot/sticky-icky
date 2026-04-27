@@ -42,11 +42,12 @@ const V_ALIGN_ICONS = {
 };
 
 const DITHER_ALGOS = [
-  { id: 'none',     label: 'None' },
-  { id: 'bayer4',   label: 'Ordered (Bayer 4×4)' },
-  { id: 'bayer8',   label: 'Ordered (Bayer 8×8)' },
-  { id: 'floyd',    label: 'Floyd-Steinberg' },
-  { id: 'atkinson', label: 'Atkinson' },
+  { id: 'none',      label: 'None' },
+  { id: 'bayer4',    label: 'Ordered (Bayer 4×4)' },
+  { id: 'bayer8',    label: 'Ordered (Bayer 8×8)' },
+  { id: 'floyd',     label: 'Floyd-Steinberg' },
+  { id: 'atkinson',  label: 'Atkinson' },
+  { id: 'riemersma', label: 'Riemersma (Hilbert)' },
 ];
 
 /** Per-Big-Text-layer controls. `onChange(patch)` patches the layer in the

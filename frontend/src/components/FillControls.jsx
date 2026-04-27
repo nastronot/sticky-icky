@@ -6,6 +6,7 @@ const DITHER_ALGOS = [
   { id: 'bayer8',         label: 'Ordered (Bayer 8×8)' },
   { id: 'floydSteinberg', label: 'Floyd-Steinberg' },
   { id: 'atkinson',       label: 'Atkinson' },
+  { id: 'riemersma',      label: 'Riemersma (Hilbert)' },
 ];
 
 /** Per-fill-layer controls. Position / size / rotation / flip / invert /

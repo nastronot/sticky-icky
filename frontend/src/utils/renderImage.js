@@ -19,8 +19,10 @@ export function makeDitherCache() {
 // Processing order per spec: upscale → threshold OR dither. Each step is
 // a pure ImageData → ImageData transform. When the Threshold op is active
 // the existing dither step is skipped (threshold already produces a clean
-// 1-bit result).
-function processImage(layer) {
+// 1-bit result). The `gamma` flag is a global studio setting (Settings →
+// Print) that linearises sRGB before luma + comparison so midtones aren't
+// skewed bright.
+function processImage(layer, gamma) {
   let current = layer.originalImage;
 
   // 1. EPX upscale (2× only — 4× was removed for being rarely useful and
@@ -32,21 +34,21 @@ function processImage(layer) {
   // 2. Threshold OR dither (mutually exclusive).
   const mode = layer.thresholdMode ?? 'off';
   if (mode === 'auto') {
-    const t = otsuThreshold(current);
-    current = applyThreshold(current, t);
+    const t = otsuThreshold(current, gamma);
+    current = applyThreshold(current, t, gamma);
   } else if (mode === 'manual') {
     const t = layer.thresholdValue ?? 128;
-    current = applyThreshold(current, t);
+    current = applyThreshold(current, t, gamma);
   } else {
     // Existing dither path — uses the legacy `threshold` field as the
     // brightness cutoff.
-    current = ditherImage(current, layer.ditherAlgo, layer.ditherAmount, layer.threshold);
+    current = ditherImage(current, layer.ditherAlgo, layer.ditherAmount, layer.threshold, gamma);
   }
 
   return current;
 }
 
-function signatureOf(layer) {
+function signatureOf(layer, gamma) {
   return {
     originalImage: layer.originalImage,
     upscaleEnabled: !!layer.upscaleEnabled,
@@ -55,6 +57,7 @@ function signatureOf(layer) {
     algo: layer.ditherAlgo,
     amount: layer.ditherAmount,
     threshold: layer.threshold,
+    gamma: !!gamma,
   };
 }
 
@@ -67,16 +70,17 @@ function sigEquals(a, b) {
     a.thresholdValue === b.thresholdValue &&
     a.algo === b.algo &&
     a.amount === b.amount &&
-    a.threshold === b.threshold
+    a.threshold === b.threshold &&
+    a.gamma === b.gamma
   );
 }
 
-function getProcessed(cache, layer) {
+function getProcessed(cache, layer, gamma) {
   const cached = cache.get(layer.id);
-  const sig = signatureOf(layer);
+  const sig = signatureOf(layer, gamma);
   if (cached && sigEquals(cached.sig, sig)) return cached;
 
-  const imageData = processImage(layer);
+  const imageData = processImage(layer, gamma);
   const source = document.createElement('canvas');
   source.width = imageData.width;
   source.height = imageData.height;
@@ -92,14 +96,15 @@ function getProcessed(cache, layer) {
  * is cleared, then the processed source is drawn with the layer's transform
  * (translate to center, rotate, flip, scale to width/height).
  *
- * `cache` is from `makeDitherCache()`.
+ * `cache` is from `makeDitherCache()`. `gamma` is the global gamma-correction
+ * flag — when true, threshold/dither operate in linear-light space.
  */
-export function renderImageLayer(canvas, layer, cache) {
+export function renderImageLayer(canvas, layer, cache, gamma = false) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!layer.originalImage) return;
 
-  const { source } = getProcessed(cache, layer);
+  const { source } = getProcessed(cache, layer, gamma);
 
   const cx = layer.x + layer.width / 2;
   const cy = layer.y + layer.height / 2;

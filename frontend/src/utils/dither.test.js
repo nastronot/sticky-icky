@@ -206,8 +206,8 @@ describe('applyDither dispatcher', () => {
     }
   });
 
-  it('floyd / atkinson paths produce a mix at amount=100', () => {
-    for (const algo of ['floyd', 'atkinson']) {
+  it('floyd / atkinson / riemersma paths produce a mix at amount=100', () => {
+    for (const algo of ['floyd', 'atkinson', 'riemersma']) {
       const data = makeRGBA(Array(256).fill(BLACK));
       applyDither(data, 16, 16, algo, 100);
       const whites = Array.from({ length: 256 }, (_, i) => pixelAt(data, i)[0])
@@ -215,5 +215,15 @@ describe('applyDither dispatcher', () => {
       expect(whites).toBeGreaterThan(0);
       expect(whites).toBeLessThan(256);
     }
+  });
+
+  it('floydSteinberg is an alias for floyd', () => {
+    // The two pipelines (BigText and image) used different ids historically
+    // — the dispatcher accepts both so layer dropdowns can share one name.
+    const a = makeRGBA(Array(256).fill(BLACK));
+    const b = makeRGBA(Array(256).fill(BLACK));
+    applyDither(a, 16, 16, 'floyd', 100);
+    applyDither(b, 16, 16, 'floydSteinberg', 100);
+    expect(a).toEqual(b);
   });
 });

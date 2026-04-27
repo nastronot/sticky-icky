@@ -20,6 +20,7 @@ export default function Settings({
   screenDPI,
   theme,
   accent,
+  gammaCorrect,
   onChangeDarkness,
   onChangeSpeed,
   onChangeXOffset,
@@ -27,6 +28,7 @@ export default function Settings({
   onCalibrationDone,
   onChangeTheme,
   onChangeAccent,
+  onChangeGammaCorrect,
   onClose,
 }) {
   const [tab, setTab] = useState('print');
@@ -146,6 +148,30 @@ export default function Settings({
                 />
               </label>
             </div>
+
+            <div className="settings-divider" />
+
+            <p className="settings-section-hint">
+              Gamma correction runs the image-layer threshold and dither maths
+              in linear-light space. Canvas pixels are sRGB-encoded, so a byte
+              value of 128 is roughly 22% linear luminance — without this
+              fix, midtones in dithered photos come out lighter than the
+              source. Affects image layers only; turning it on re-renders
+              everything in the studio immediately. Default off so existing
+              saved designs render unchanged.
+            </p>
+
+            <label className="settings-field">
+              <span className="settings-label">
+                <input
+                  type="checkbox"
+                  checked={!!gammaCorrect}
+                  onChange={e => onChangeGammaCorrect(e.target.checked)}
+                  style={{ marginRight: 8, verticalAlign: 'middle' }}
+                />
+                Gamma correction (perceptual midtones)
+              </span>
+            </label>
           </div>
         )}
 

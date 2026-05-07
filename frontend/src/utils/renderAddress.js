@@ -177,24 +177,19 @@ function drawAddressBorder(ctx, x, y, w, h) {
   ctx.fillRect(x + w - ADDRESS_BORDER, y, ADDRESS_BORDER, h); // right
 }
 
-/** Render an Address layer. Layout (with ID set):
- *
- *   ┌──────────────────────────────────┐  ← label
- *   │     ↕ OUTER_PAD                  │
- *   │  ┌──────────┐                    │
- *   │  │ FLAG  ID │ (banner: black)    │
- *   │  ├──────────┴─────────────────┐  │
- *   │  │ ↕ INNER_PAD                │  │
- *   │  │   address text             │  │  (1-dot border)
- *   │  │                            │  │
- *   │  └────────────────────────────┘  │
- *   │     ↕ OUTER_PAD                  │
- *   └──────────────────────────────────┘
- *
- *  Without an ID the banner is omitted and the address block fills the
- *  inner area on its own. Everything is proportional to label height so
- *  the entire unit scales together. The layer occupies the full canvas —
- *  no x/y/width/height/rotation — exactly like Big Text. */
+/** Render an Address layer. Layout:
+ *  - The unit (banner + bordered address block) is centered vertically in
+ *    the label so padding above the banner equals padding below the address.
+ *  - The address block height shrinks to wrap the text with `innerTextPad`
+ *    on every side — that way the visible padding inside the border is
+ *    equidistant from the text on top, bottom, and (when the longest line
+ *    fills the textbox width) left/right.
+ *  - The banner sits at the top-left of the address block, flush with its
+ *    top border, content-sized horizontally — extends right with the ID
+ *    length. Drawn last so it overlays the address's top-left border row.
+ *  All dimensions are proportional to label height so the whole unit
+ *  scales together. The layer occupies the full canvas — no x/y/width/
+ *  height/rotation — exactly like Big Text. */
 export async function renderAddressLayer(canvas, layer) {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
@@ -209,28 +204,17 @@ export async function renderAddressLayer(canvas, layer) {
 
   const outerPad = Math.max(8, Math.round(H * OUTER_PAD_FRACTION));
   const innerX = outerPad;
-  const innerY = outerPad;
   const innerW = W - 2 * outerPad;
   const innerH = H - 2 * outerPad;
   if (innerW <= ADDRESS_BORDER * 2 || innerH <= ADDRESS_BORDER * 2) return;
 
   const banner = await computeBanner(ctx, layer, innerW, H);
 
-  // Address block fills the inner area below the banner (or the whole inner
-  // area when no banner is present). Banner's bottom edge is flush with the
-  // address block's top — the next row down is the address top border.
-  const addressX = innerX;
-  const addressY = innerY + (banner ? banner.h : 0);
-  const addressW = innerW;
-  const addressH = innerH - (banner ? banner.h : 0);
-  if (addressW <= ADDRESS_BORDER * 2 || addressH <= ADDRESS_BORDER * 2) return;
-
-  // Text fits inside the border, then inside an additional padding ring.
   const innerTextPad = Math.max(6, Math.round(H * ADDRESS_INNER_PAD_FRACTION));
-  const textX = addressX + ADDRESS_BORDER + innerTextPad;
-  const textY = addressY + ADDRESS_BORDER + innerTextPad;
+  const addressW = innerW;
+  const addressMaxH = innerH - (banner ? banner.h : 0);
   const textW = addressW - 2 * (ADDRESS_BORDER + innerTextPad);
-  const textH = addressH - 2 * (ADDRESS_BORDER + innerTextPad);
+  const textMaxH = addressMaxH - 2 * (ADDRESS_BORDER + innerTextPad);
 
   const lines = splitAddressLines(layer.text);
   const hasText = lines.some(l => l.length > 0);
@@ -238,21 +222,13 @@ export async function renderAddressLayer(canvas, layer) {
   const patId = fillPattern ?? 'default-solid';
   const usePattern = patId !== 'solid' && patId !== 'default-solid';
 
-  // Address-block interior (the rect bounded by the 1px border, where fill
-  // and text live).
-  const interiorX = addressX + ADDRESS_BORDER;
-  const interiorY = addressY + ADDRESS_BORDER;
-  const interiorW = addressW - 2 * ADDRESS_BORDER;
-  const interiorH = addressH - 2 * ADDRESS_BORDER;
-
-  // ── Address text + fill ────────────────────────────────────────────────
-  if (!hasText) {
-    if (invert && interiorW > 0 && interiorH > 0) {
-      ctx.fillStyle = usePattern ? createCanvasPattern(ctx, patId) : 'black';
-      ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
-    }
-  } else if (textW > 0 && textH > 0) {
-    const fit = fitAddress(ctx, lines, font, !!bold, !!italic, textW, textH);
+  // ── Auto-fit and measure the actual text block ─────────────────────────
+  // We need the block dimensions before we can decide the address height,
+  // because the address height is sized to wrap the text + innerTextPad on
+  // every side.
+  let textRender = null;
+  if (hasText && textW > 0 && textMaxH > 0) {
+    const fit = fitAddress(ctx, lines, font, !!bold, !!italic, textW, textMaxH);
     if (fit) {
       const scale = Math.max(ADDRESS_MIN_SIZE_SCALE, Math.min(1, sizeScale ?? 1));
       const size = Math.max(4, Math.round(fit.size * scale));
@@ -272,44 +248,83 @@ export async function renderAddressLayer(canvas, layer) {
       const gap = size * 0.15;
       const totalH = lineH * lines.length + gap * Math.max(0, lines.length - 1);
       const blockW = Math.max(0, ...lineWidths);
+      textRender = { size, lineH, gap, maxAscent, totalH, blockW, lineWidths };
+    }
+  }
 
-      const drawText = () => {
-        applyFont(ctx, size, font, !!bold, !!italic);
-        ctx.textBaseline = 'alphabetic';
-        const blockStartX = textX + (textW - blockW) / 2;
-        const startY = textY + (textH - totalH) / 2;
-        for (let i = 0; i < lines.length; i++) {
-          const yy = startY + i * (lineH + gap) + maxAscent;
-          drawLine(ctx, lines[i], blockStartX, yy, 0, null);
-        }
-      };
+  // ── Address height: wrap the text vertically; if no text, fall back to
+  // the empty-address minimum (just inner padding × 2 + borders). ────────
+  const wrappedTextH = textRender ? textRender.totalH : 0;
+  const addressH = Math.min(
+    addressMaxH,
+    wrappedTextH + 2 * innerTextPad + 2 * ADDRESS_BORDER,
+  );
+  if (addressW <= ADDRESS_BORDER * 2 || addressH <= ADDRESS_BORDER * 2) return;
 
-      if (invert) {
-        if (usePattern) {
-          ctx.fillStyle = createCanvasPattern(ctx, patId);
-          ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.fillStyle = 'black';
-          drawText();
-          ctx.globalCompositeOperation = 'source-over';
-        } else {
-          ctx.fillStyle = 'black';
-          ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
-          ctx.fillStyle = 'white';
-          drawText();
-        }
+  // ── Vertical centering of the unit ─────────────────────────────────────
+  // Padding above the banner = padding below the address by construction.
+  const unitH = (banner ? banner.h : 0) + addressH;
+  const topSpace = Math.max(outerPad, Math.floor((H - unitH) / 2));
+  const bannerY = topSpace;
+  const addressX = innerX;
+  const addressY = topSpace + (banner ? banner.h : 0);
+
+  // Text origin inside the (shrunken) address block.
+  const textX = addressX + ADDRESS_BORDER + innerTextPad;
+  const textY = addressY + ADDRESS_BORDER + innerTextPad;
+  const textH = addressH - 2 * (ADDRESS_BORDER + innerTextPad);
+
+  // Address-block interior (rect bounded by the 1px border).
+  const interiorX = addressX + ADDRESS_BORDER;
+  const interiorY = addressY + ADDRESS_BORDER;
+  const interiorW = addressW - 2 * ADDRESS_BORDER;
+  const interiorH = addressH - 2 * ADDRESS_BORDER;
+
+  // ── Address text + fill ────────────────────────────────────────────────
+  if (!hasText) {
+    if (invert && interiorW > 0 && interiorH > 0) {
+      ctx.fillStyle = usePattern ? createCanvasPattern(ctx, patId) : 'black';
+      ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
+    }
+  } else if (textRender && textW > 0 && textH > 0) {
+    const { size, lineH, gap, maxAscent, totalH, blockW } = textRender;
+
+    const drawText = () => {
+      applyFont(ctx, size, font, !!bold, !!italic);
+      ctx.textBaseline = 'alphabetic';
+      const blockStartX = textX + (textW - blockW) / 2;
+      const startY = textY + (textH - totalH) / 2;
+      for (let i = 0; i < lines.length; i++) {
+        const yy = startY + i * (lineH + gap) + maxAscent;
+        drawLine(ctx, lines[i], blockStartX, yy, 0, null);
+      }
+    };
+
+    if (invert) {
+      if (usePattern) {
+        ctx.fillStyle = createCanvasPattern(ctx, patId);
+        ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'black';
+        drawText();
+        ctx.globalCompositeOperation = 'source-over';
       } else {
-        if (usePattern) {
-          ctx.fillStyle = 'black';
-          drawText();
-          ctx.globalCompositeOperation = 'source-in';
-          ctx.fillStyle = createCanvasPattern(ctx, patId);
-          ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
-          ctx.globalCompositeOperation = 'source-over';
-        } else {
-          ctx.fillStyle = 'black';
-          drawText();
-        }
+        ctx.fillStyle = 'black';
+        ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
+        ctx.fillStyle = 'white';
+        drawText();
+      }
+    } else {
+      if (usePattern) {
+        ctx.fillStyle = 'black';
+        drawText();
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = createCanvasPattern(ctx, patId);
+        ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
+        ctx.globalCompositeOperation = 'source-over';
+      } else {
+        ctx.fillStyle = 'black';
+        drawText();
       }
     }
   }
@@ -317,8 +332,8 @@ export async function renderAddressLayer(canvas, layer) {
   // ── Address border (1-dot frame) ───────────────────────────────────────
   drawAddressBorder(ctx, addressX, addressY, addressW, addressH);
 
-  // ── Banner (drawn last so it can overlap the address top border) ──────
-  if (banner) drawBanner(ctx, banner, innerX, innerY);
+  // ── Banner (drawn last so it overlays the address top border) ─────────
+  if (banner) drawBanner(ctx, banner, innerX, bannerY);
 
   if (ditherAlgo !== 'none' && ditherAmount > 0) {
     const imageData = ctx.getImageData(0, 0, W, H);

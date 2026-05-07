@@ -203,7 +203,6 @@ export async function renderAddressLayer(canvas, layer) {
   await document.fonts.load(`${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}40px "${font}"`);
 
   const outerPad = Math.max(8, Math.round(H * OUTER_PAD_FRACTION));
-  const innerX = outerPad;
   const innerW = W - 2 * outerPad;
   const innerH = H - 2 * outerPad;
   if (innerW <= ADDRESS_BORDER * 2 || innerH <= ADDRESS_BORDER * 2) return;
@@ -211,9 +210,9 @@ export async function renderAddressLayer(canvas, layer) {
   const banner = await computeBanner(ctx, layer, innerW, H);
 
   const innerTextPad = Math.max(6, Math.round(H * ADDRESS_INNER_PAD_FRACTION));
-  const addressW = innerW;
+  const addressMaxW = innerW;
   const addressMaxH = innerH - (banner ? banner.h : 0);
-  const textW = addressW - 2 * (ADDRESS_BORDER + innerTextPad);
+  const textMaxW = addressMaxW - 2 * (ADDRESS_BORDER + innerTextPad);
   const textMaxH = addressMaxH - 2 * (ADDRESS_BORDER + innerTextPad);
 
   const lines = splitAddressLines(layer.text);
@@ -223,12 +222,12 @@ export async function renderAddressLayer(canvas, layer) {
   const usePattern = patId !== 'solid' && patId !== 'default-solid';
 
   // ── Auto-fit and measure the actual text block ─────────────────────────
-  // We need the block dimensions before we can decide the address height,
-  // because the address height is sized to wrap the text + innerTextPad on
-  // every side.
+  // We need the block dimensions before we can decide the address rect,
+  // because the address shrinks both horizontally and vertically to wrap
+  // the text + innerTextPad on every side.
   let textRender = null;
-  if (hasText && textW > 0 && textMaxH > 0) {
-    const fit = fitAddress(ctx, lines, font, !!bold, !!italic, textW, textMaxH);
+  if (hasText && textMaxW > 0 && textMaxH > 0) {
+    const fit = fitAddress(ctx, lines, font, !!bold, !!italic, textMaxW, textMaxH);
     if (fit) {
       const scale = Math.max(ADDRESS_MIN_SIZE_SCALE, Math.min(1, sizeScale ?? 1));
       const size = Math.max(4, Math.round(fit.size * scale));
@@ -252,26 +251,36 @@ export async function renderAddressLayer(canvas, layer) {
     }
   }
 
-  // ── Address height: wrap the text vertically; if no text, fall back to
-  // the empty-address minimum (just inner padding × 2 + borders). ────────
+  // ── Address rect: wrap the text in both axes. The address must be at
+  // least as wide as the banner so the banner never overhangs to the right
+  // of the address block. Capped by the inner area on both axes. ──────────
   const wrappedTextH = textRender ? textRender.totalH : 0;
+  const wrappedTextW = textRender ? textRender.blockW : 0;
+  const minAddressW = banner ? banner.w : 0;
+  const addressW = Math.min(
+    addressMaxW,
+    Math.max(minAddressW, Math.ceil(wrappedTextW) + 2 * innerTextPad + 2 * ADDRESS_BORDER),
+  );
   const addressH = Math.min(
     addressMaxH,
     wrappedTextH + 2 * innerTextPad + 2 * ADDRESS_BORDER,
   );
   if (addressW <= ADDRESS_BORDER * 2 || addressH <= ADDRESS_BORDER * 2) return;
 
-  // ── Vertical centering of the unit ─────────────────────────────────────
-  // Padding above the banner = padding below the address by construction.
+  // ── Centering of the unit (both axes) ─────────────────────────────────
+  // Padding above banner = padding below address; padding to the left of
+  // the unit = padding to the right.
   const unitH = (banner ? banner.h : 0) + addressH;
   const topSpace = Math.max(outerPad, Math.floor((H - unitH) / 2));
+  const leftSpace = Math.max(outerPad, Math.floor((W - addressW) / 2));
   const bannerY = topSpace;
-  const addressX = innerX;
+  const addressX = leftSpace;
   const addressY = topSpace + (banner ? banner.h : 0);
 
   // Text origin inside the (shrunken) address block.
   const textX = addressX + ADDRESS_BORDER + innerTextPad;
   const textY = addressY + ADDRESS_BORDER + innerTextPad;
+  const textW = addressW - 2 * (ADDRESS_BORDER + innerTextPad);
   const textH = addressH - 2 * (ADDRESS_BORDER + innerTextPad);
 
   // Address-block interior (rect bounded by the 1px border).
@@ -287,12 +296,16 @@ export async function renderAddressLayer(canvas, layer) {
       ctx.fillRect(interiorX, interiorY, interiorW, interiorH);
     }
   } else if (textRender && textW > 0 && textH > 0) {
-    const { size, lineH, gap, maxAscent, totalH, blockW } = textRender;
+    const { size, lineH, gap, maxAscent, totalH } = textRender;
 
     const drawText = () => {
       applyFont(ctx, size, font, !!bold, !!italic);
       ctx.textBaseline = 'alphabetic';
-      const blockStartX = textX + (textW - blockW) / 2;
+      // Left-justify the block: text starts at innerTextPad from the left
+      // border. When the address shrinks to wrap the text exactly,
+      // blockW === textW and there's no horizontal slack. When the banner
+      // forces a wider address, the slack falls on the right side.
+      const blockStartX = textX;
       const startY = textY + (textH - totalH) / 2;
       for (let i = 0; i < lines.length; i++) {
         const yy = startY + i * (lineH + gap) + maxAscent;
@@ -333,7 +346,7 @@ export async function renderAddressLayer(canvas, layer) {
   drawAddressBorder(ctx, addressX, addressY, addressW, addressH);
 
   // ── Banner (drawn last so it overlays the address top border) ─────────
-  if (banner) drawBanner(ctx, banner, innerX, bannerY);
+  if (banner) drawBanner(ctx, banner, addressX, bannerY);
 
   if (ditherAlgo !== 'none' && ditherAmount > 0) {
     const imageData = ctx.getImageData(0, 0, W, H);

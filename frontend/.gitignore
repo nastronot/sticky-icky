@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Tesseract.js runtime assets — copied from node_modules + downloaded once
+# by scripts/setup-tesseract.mjs (postinstall). Regenerated on every fresh
+# `npm install`, so no need to track them in git.
+public/tesseract/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

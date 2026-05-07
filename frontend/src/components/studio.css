@@ -1833,3 +1833,110 @@ html.accent-graphite     { --accent: #8A8A8A; --accent-fg: #000000; }
   align-items: center;
   gap: 6px;
 }
+
+/* OCR modal ================================================================= */
+
+.ocr-trigger {
+  margin-top: 6px;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.ocr-modal-panel {
+  width: min(540px, 96vw);
+}
+
+.ocr-modal-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ocr-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 36px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--bg-elevated);
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+  min-height: 180px;
+  justify-content: center;
+}
+
+.ocr-dropzone.active {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  color: var(--text-primary);
+}
+
+.ocr-dropzone.busy {
+  border-style: solid;
+  border-color: var(--accent);
+  cursor: progress;
+}
+
+.ocr-dropzone-headline {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.ocr-dropzone-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ocr-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: ocr-spin 800ms linear infinite;
+}
+
+@keyframes ocr-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ocr-status-line {
+  color: var(--text-primary);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.ocr-status-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ocr-error {
+  color: var(--danger);
+  font-size: 13px;
+  background: color-mix(in srgb, var(--danger), transparent 88%);
+  border: 1px solid color-mix(in srgb, var(--danger), transparent 70%);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.ocr-modal-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+}
+
+.ocr-modal-note strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}

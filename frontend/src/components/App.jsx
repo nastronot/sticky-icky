@@ -29,6 +29,7 @@ import Settings from './Settings.jsx';
 import PatternEditor from './PatternEditor.jsx';
 import PatternManager from './PatternManager.jsx';
 import { PatternContext } from './patternContext.js';
+import { isOcrModalOpen } from '../utils/ocrModalState.js';
 import {
   DEFAULT_PATTERNS,
   PATTERN_SIZE,
@@ -1074,6 +1075,10 @@ export default function App() {
   // through the same addImage flow as the file picker / drop handler.
   useEffect(() => {
     const onPaste = (e) => {
+      // The Address layer's OCR modal owns clipboard images while open —
+      // pasting the same image as a regular Image layer at the same time
+      // would be confusing. The modal sets this flag for its lifetime.
+      if (isOcrModalOpen()) return;
       const t = document.activeElement;
       if (
         t && (

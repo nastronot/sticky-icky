@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Bold } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Bold, ScanText } from 'lucide-react';
 import PatternPicker from './PatternPicker.jsx';
+import OcrModal from './OcrModal.jsx';
 import {
   ADDRESS_MAX_LINES,
   ADDRESS_MIN_SIZE_SCALE,
@@ -45,6 +46,7 @@ function capLines(text) {
 export default function AddressControls({ layer, onChange, focusTextNonce }) {
   const set = patch => onChange(patch);
   const textareaRef = useRef(null);
+  const [ocrOpen, setOcrOpen] = useState(false);
 
   useEffect(() => {
     if (!focusTextNonce) return;
@@ -108,7 +110,27 @@ export default function AddressControls({ layer, onChange, focusTextNonce }) {
           placeholder={'Name\nStreet\nCity, Region\nPostal code\nCountry'}
           rows={7}
         />
+        <button
+          type="button"
+          className="cal-btn ocr-trigger"
+          onClick={() => setOcrOpen(true)}
+          title="Extract address text from an image"
+        >
+          <ScanText size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+          OCR from image…
+        </button>
       </label>
+
+      {ocrOpen && (
+        <OcrModal
+          onCancel={() => setOcrOpen(false)}
+          onResult={(text) => {
+            set({ text: capLines(text) });
+            setOcrOpen(false);
+          }}
+          maxLines={ADDRESS_MAX_LINES}
+        />
+      )}
 
       <label className="control-group">
         <span>Postcrossing ID</span>

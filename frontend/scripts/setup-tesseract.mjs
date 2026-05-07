@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Copy Tesseract.js runtime assets out of node_modules into public/tesseract/
 // so they're served from the same origin (CSP keeps default-src 'self'). Also
-// downloads the English language data file once. Idempotent — does nothing
-// if every required file is already present. Runs as a postinstall hook so
-// `npm install` in a fresh clone (and the Docker build) prepares the assets
-// before Vite's prebuild copies the public/ tree into dist/.
+// downloads the language data files once for every language we recognize at
+// runtime. Idempotent — does nothing if every required file is already
+// present. Runs as a postinstall hook so `npm install` in a fresh clone (and
+// the Docker build) prepares the assets before Vite's build copies the
+// public/ tree into dist/.
 
-import { existsSync, mkdirSync, copyFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, copyFileSync, statSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,10 +37,16 @@ const COPY = [
   ['tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js','tesseract-core-relaxedsimd-lstm.wasm.js'],
 ];
 
-// Pinned to the version tesseract.js@7 expects (its CDN default). Fetched
-// once and cached on disk; the file is ~10 MB compressed.
-const TRAINEDDATA_URL = 'https://tessdata.projectnaptha.com/4.0.0/eng.traineddata.gz';
-const TRAINEDDATA_PATH = join(PUBLIC_DIR, 'eng.traineddata.gz');
+// Languages bundled for the OCR feature. Postcrossing is global, so we
+// cover the top-10 origin countries: English, Chinese (Simplified +
+// Traditional), Japanese, and Russian. Using the `_fast` tessdata variant
+// keeps each language to ~1.5–2 MB (total ~7 MB compressed) with a
+// 1–2% accuracy hit on clean printed text vs the full models — fine for
+// the kind of clean-print address cards Postcrossing exchanges.
+const LANGS = ['eng', 'chi_sim', 'chi_tra', 'jpn', 'rus'];
+const TESSDATA_VARIANT = 'fast';                      // bumps every language's redownload when changed
+const TESSDATA_BASE = `https://tessdata.projectnaptha.com/4.0.0_${TESSDATA_VARIANT}`;
+const VARIANT_FILE = join(PUBLIC_DIR, '.variant');    // sentinel — switching variants triggers a refresh
 
 function copyAsset(srcRel, destName) {
   const src = join(ROOT, 'node_modules', srcRel);
@@ -55,19 +62,42 @@ function copyAsset(srcRel, destName) {
   return true;
 }
 
-async function ensureTrainedData() {
-  if (existsSync(TRAINEDDATA_PATH) && statSync(TRAINEDDATA_PATH).size > 1_000_000) {
-    return false;
-  }
-  console.log(`[tesseract setup] downloading ${TRAINEDDATA_URL}`);
-  const res = await fetch(TRAINEDDATA_URL);
+async function downloadOne(lang) {
+  const file = `${lang}.traineddata.gz`;
+  const path = join(PUBLIC_DIR, file);
+  const url = `${TESSDATA_BASE}/${file}`;
+  console.log(`[tesseract setup] downloading ${url}`);
+  const res = await fetch(url);
   if (!res.ok) {
-    console.error(`[tesseract setup] download failed: ${res.status} ${res.statusText}`);
+    console.error(`[tesseract setup] download failed: ${res.status} ${res.statusText} (${url})`);
     process.exit(1);
   }
   const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(TRAINEDDATA_PATH, buf);
-  return true;
+  writeFileSync(path, buf);
+}
+
+async function ensureTrainedData() {
+  // Clear stale-variant data so switching tessdata_fast↔best is reliable.
+  const cur = existsSync(VARIANT_FILE) ? readFileSync(VARIANT_FILE, 'utf-8').trim() : null;
+  if (cur && cur !== TESSDATA_VARIANT) {
+    for (const lang of LANGS) {
+      const path = join(PUBLIC_DIR, `${lang}.traineddata.gz`);
+      if (existsSync(path)) unlinkSync(path);
+    }
+  }
+
+  let downloaded = 0;
+  for (const lang of LANGS) {
+    const path = join(PUBLIC_DIR, `${lang}.traineddata.gz`);
+    if (existsSync(path) && statSync(path).size > 200_000) continue;
+    await downloadOne(lang);
+    downloaded++;
+  }
+
+  if (cur !== TESSDATA_VARIANT) {
+    writeFileSync(VARIANT_FILE, TESSDATA_VARIANT + '\n');
+  }
+  return downloaded;
 }
 
 async function main() {
@@ -79,11 +109,11 @@ async function main() {
   }
   const downloaded = await ensureTrainedData();
 
-  if (copied === 0 && !downloaded) {
+  if (copied === 0 && downloaded === 0) {
     // Quiet success — postinstall runs on every npm install.
     return;
   }
-  console.log(`[tesseract setup] ready (${copied} files copied${downloaded ? ', traineddata downloaded' : ''})`);
+  console.log(`[tesseract setup] ready (${copied} files copied${downloaded > 0 ? `, ${downloaded} traineddata downloaded` : ''})`);
 }
 
 main().catch((err) => {

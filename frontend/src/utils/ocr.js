@@ -1,9 +1,17 @@
 // Thin wrapper around Tesseract.js for the Address layer's OCR feature.
-// All assets (worker, wasm core, English language data) are served
-// same-origin from /tesseract/ — populated by scripts/setup-tesseract.mjs at
-// install time. The Tesseract worker is created lazily on first call and
-// cached afterward; subsequent OCR requests reuse the warm worker so only
-// the very first run pays the wasm-load + traineddata-decompress cost.
+// All assets (worker, wasm core, traineddata for every supported language)
+// are served same-origin from /tesseract/ — populated by
+// scripts/setup-tesseract.mjs at install time. The Tesseract worker is
+// created lazily on first call and cached afterward; subsequent OCR
+// requests reuse the warm worker so only the very first run pays the
+// wasm-load + traineddata-decompress cost.
+
+// Languages bundled and loaded into every worker. Postcrossing covers the
+// world, so we load English + Chinese (Simplified + Traditional) +
+// Japanese + Russian concurrently — Tesseract recognizes the union of
+// scripts in a single pass. Keep this in sync with LANGS in
+// scripts/setup-tesseract.mjs.
+const LANGS = ['eng', 'chi_sim', 'chi_tra', 'jpn', 'rus'];
 
 let workerPromise = null;
 
@@ -12,11 +20,12 @@ async function getWorker(onProgress) {
   if (workerPromise) return workerPromise;
   workerPromise = (async () => {
     const Tesseract = await import('tesseract.js');
-    const worker = await Tesseract.createWorker('eng', 1, {
+    const worker = await Tesseract.createWorker(LANGS, 1, {
       workerPath: '/tesseract/worker.min.js',
       corePath: '/tesseract/',
       langPath: '/tesseract/',
-      // gzip is the default suffix for the cached language data we ship.
+      // The traineddata files we ship are gzipped — Tesseract knows to
+      // decompress them on load.
       gzip: true,
       logger: onProgress
         ? (m) => onProgress(m)

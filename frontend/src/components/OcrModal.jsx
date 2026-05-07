@@ -192,11 +192,12 @@ export default function OcrModal({ onCancel, onResult, maxLines = 7 }) {
           {error && <div className="ocr-error">{error}</div>}
 
           <div className="ocr-modal-note">
-            <strong>First use downloads ~10&nbsp;MB</strong> of OCR assets (English
-            language data + WebAssembly engine). They're cached in the
-            browser after that — subsequent OCRs are quick. All
-            recognition runs locally in your browser; nothing is sent to
-            an external service.
+            <strong>First use downloads ~10&nbsp;MB</strong> of OCR assets — the
+            WebAssembly engine plus language data for English, Chinese
+            (Simplified and Traditional), Japanese, and Russian. They're
+            cached in the browser after that; subsequent OCRs are quick.
+            All recognition runs locally; nothing is sent to an external
+            service.
           </div>
         </div>
 

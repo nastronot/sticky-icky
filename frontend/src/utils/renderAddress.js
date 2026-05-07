@@ -12,9 +12,9 @@ export const ADDRESS_MIN_SIZE_SCALE = 0.25;
 // a hairline 1-dot stroke regardless of size.
 const OUTER_PAD_FRACTION       = 0.04;  // padding between the unit and the label edge (top/bottom/left/right)
 const ID_FONT_FRACTION         = 0.11;  // banner ID font size
-const BANNER_INNER_PAD_FRACTION = 0.25; // banner padding (× ID font size)
+const BANNER_INNER_PAD_FRACTION = 0.25; // banner padding (× ID font size, uniform on all sides)
 const FLAG_GAP_FRACTION        = 0.3;   // gap between flag and ID text (× ID font size)
-const ADDRESS_INNER_PAD_FRACTION = 0.04; // padding inside the address border (× label H)
+const ADDRESS_INNER_PAD_FRACTION = 0.06; // padding inside the address border (× label H, uniform on all sides)
 const ADDRESS_BORDER = 1;                // 1-dot hairline border around the address block
 
 /** Split user text into at most ADDRESS_MAX_LINES lines, preserving blanks. */
@@ -64,7 +64,7 @@ function fitAddress(ctx, lines, font, bold, italic, maxW, maxH) {
  *  push the right edge further. The banner's right edge is capped at the
  *  inner-area width — for super-long IDs the font shrinks to fit. */
 async function computeBanner(ctx, layer, innerW, H) {
-  const idText = (layer.postcrossingId ?? '').trim();
+  const idText = (layer.postcrossingId ?? '').trim().toUpperCase();
   if (!idText) return null;
 
   const code = parseCountryCode(idText);
@@ -91,14 +91,14 @@ async function computeBanner(ctx, layer, innerW, H) {
 
   const layout = (measured) => {
     const idH = measured.idAscent + measured.idDescent;
-    const padX = Math.max(4, Math.round(idFontSize * BANNER_INNER_PAD_FRACTION));
-    const padY = Math.max(3, Math.round(idFontSize * BANNER_INNER_PAD_FRACTION * 0.7));
+    // Uniform padding on all sides — same value horizontally and vertically.
+    const pad = Math.max(4, Math.round(idFontSize * BANNER_INNER_PAD_FRACTION));
     const gap = flag ? Math.max(4, Math.round(idFontSize * FLAG_GAP_FRACTION)) : 0;
     const flagH = flag ? idH : 0;
     const flagW = flag ? Math.round(flagAspect * flagH) : 0;
-    const bannerW = padX * 2 + flagW + gap + measured.idTextW;
-    const bannerH = padY * 2 + idH;
-    return { padX, padY, gap, flagW, flagH, idH, bannerW, bannerH };
+    const bannerW = pad * 2 + flagW + gap + measured.idTextW;
+    const bannerH = pad * 2 + idH;
+    return { padX: pad, padY: pad, gap, flagW, flagH, idH, bannerW, bannerH };
   };
 
   let measured = measure();

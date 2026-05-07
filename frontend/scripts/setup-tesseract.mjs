@@ -14,22 +14,26 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const PUBLIC_DIR = join(ROOT, 'public', 'tesseract');
 
-// Subset of tesseract.js-core variants and worker files we ship. Keeping the
-// SIMD + non-SIMD pair is what tesseract.js itself does at runtime — it
-// feature-detects and picks the fastest one the browser supports. The LSTM
-// variants are for the v5 engine and aren't used by our default
-// configuration but tesseract.js's loader sometimes probes for them; cheap
-// to include.
+// All of tesseract.js-core's runtime variants, plus the worker. Tesseract
+// feature-detects which engine the browser supports (plain / simd /
+// relaxedsimd, with or without LSTM) by attempting to load each in turn
+// and falling back on 404 — so we ship every variant. They're small (a
+// few MB total uncompressed) and the browser only fetches the one(s) it
+// actually picks.
 const COPY = [
-  ['tesseract.js/dist/worker.min.js',                      'worker.min.js'],
-  ['tesseract.js-core/tesseract-core.wasm',                'tesseract-core.wasm'],
-  ['tesseract.js-core/tesseract-core.wasm.js',             'tesseract-core.wasm.js'],
-  ['tesseract.js-core/tesseract-core-simd.wasm',           'tesseract-core-simd.wasm'],
-  ['tesseract.js-core/tesseract-core-simd.wasm.js',        'tesseract-core-simd.wasm.js'],
-  ['tesseract.js-core/tesseract-core-lstm.wasm',           'tesseract-core-lstm.wasm'],
-  ['tesseract.js-core/tesseract-core-lstm.wasm.js',        'tesseract-core-lstm.wasm.js'],
-  ['tesseract.js-core/tesseract-core-simd-lstm.wasm',      'tesseract-core-simd-lstm.wasm'],
-  ['tesseract.js-core/tesseract-core-simd-lstm.wasm.js',   'tesseract-core-simd-lstm.wasm.js'],
+  ['tesseract.js/dist/worker.min.js',                          'worker.min.js'],
+  ['tesseract.js-core/tesseract-core.wasm',                    'tesseract-core.wasm'],
+  ['tesseract.js-core/tesseract-core.wasm.js',                 'tesseract-core.wasm.js'],
+  ['tesseract.js-core/tesseract-core-simd.wasm',               'tesseract-core-simd.wasm'],
+  ['tesseract.js-core/tesseract-core-simd.wasm.js',            'tesseract-core-simd.wasm.js'],
+  ['tesseract.js-core/tesseract-core-lstm.wasm',               'tesseract-core-lstm.wasm'],
+  ['tesseract.js-core/tesseract-core-lstm.wasm.js',            'tesseract-core-lstm.wasm.js'],
+  ['tesseract.js-core/tesseract-core-simd-lstm.wasm',          'tesseract-core-simd-lstm.wasm'],
+  ['tesseract.js-core/tesseract-core-simd-lstm.wasm.js',       'tesseract-core-simd-lstm.wasm.js'],
+  ['tesseract.js-core/tesseract-core-relaxedsimd.wasm',        'tesseract-core-relaxedsimd.wasm'],
+  ['tesseract.js-core/tesseract-core-relaxedsimd.wasm.js',     'tesseract-core-relaxedsimd.wasm.js'],
+  ['tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm',   'tesseract-core-relaxedsimd-lstm.wasm'],
+  ['tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js','tesseract-core-relaxedsimd-lstm.wasm.js'],
 ];
 
 // Pinned to the version tesseract.js@7 expects (its CDN default). Fetched

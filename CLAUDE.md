@@ -4,38 +4,37 @@
 
 Sticky Icky — browser-based design tool for the Zebra LP2844 thermal printer. Single repo, two parts:
 
-- `~/dev/thermal/frontend/` — React + Vite app. Multi-layer canvas editor (Big Text, free Text, Image, Solid Fill), per-layer dithering and invert, XOR compositing, save/load gallery backed by IndexedDB.
-- `~/dev/thermal/backend/` — Minimal FastAPI server. Single `POST /print` endpoint that converts a base64 1bpp bitmap into an EPL2 GW payload and writes it to the printer over serial.
+- `frontend/` — React 19 + Vite 8 canvas editor. Layer types: Big Text, free Text, Address, Image, Shape (rectangle/ellipse/polygon/star/line). Per-layer dithering and invert, XOR compositing, save/load gallery in IndexedDB.
+- `backend/` — Minimal FastAPI server. Single `POST /print` endpoint converts a base64 1bpp bitmap into an EPL2 GW payload and writes it to the printer over serial.
 
-`docs/spec.md` is the original v1 brief and is now mostly outdated. Use this file as the source of truth for current state.
+`README.md` is the user-facing feature description — keep it in sync when adding/removing features. `docs/spec.md` is the original v1 brief and is now mostly outdated.
 
 ---
 
 ## Repo
 
-- **Remote**: `git@github-nastronot:nastronot/sticky-icky.git` (SSH alias — see `~/.ssh/config` for host mapping)
+- **Remote**: `git@github-nastronot:nastronot/sticky-icky.git` (SSH alias — see `~/.ssh/config`)
 - **Owner / author**: `nastronot <nastronot@proton.me>` (local git config, not global)
 
 ---
 
 ## Workflow
 
-- **claude.ai (browser)** = planning, prompt crafting, high-level decisions
-- **Claude Code** = implementation only, directed by browser prompts
-- Claude Code does not make architectural decisions. Flag ambiguity, don't assume.
-- After each completed task or logical unit of work: commit with a descriptive message. Not after every file edit, not one giant commit per session.
-- Every commit that changes application code (frontend or backend) must also bump the version in `frontend/package.json` following semver (`major.minor.patch`):
-  - **Patch** (`x.y.Z`): bug fixes, small tweaks, refactors
-  - **Minor** (`x.Y.0`): new features, non-breaking additions
-  - **Major** (`X.0.0`): breaking changes, major reworks
-  - If the bump type is ambiguous, ask before committing. Documentation-only or CI-only commits don't require a bump.
+- **claude.ai (browser)** = planning, prompt crafting, high-level decisions.
+- **Claude Code** = implementation only, directed by browser prompts. Flag ambiguity, don't assume architectural decisions.
+- Commit per completed task or logical unit of work — not per file edit, not one giant commit per session.
+- Every commit that changes application code must bump `frontend/package.json` semver:
+  - **Patch** (`x.y.Z`) — bug fixes, small tweaks, refactors
+  - **Minor** (`x.Y.0`) — new features, non-breaking additions
+  - **Major** (`X.0.0`) — breaking changes
+  - Ask if ambiguous. Documentation-only or CI-only commits don't bump.
 
 ---
 
 ## On Session Start
 
-1. Read `CLAUDE.md` (this file)
-2. Read `README.md` if you need a high-level overview of the project for users
+1. Read this file
+2. Read `README.md` if you need a high-level overview for users
 3. Do not read files speculatively
 
 ---
@@ -49,7 +48,7 @@ Sticky Icky — browser-based design tool for the Zebra LP2844 thermal printer. 
 | Firmware         | EPL2 only — V4.29 UPS-branded. **No ZPL.**         |
 | Resolution       | 203 DPI                                            |
 | Print width      | 832 dots (4.09")                                   |
-| Image buffer     | 245 KB                                             |
+| Image buffer     | 245 KB (hard ceiling per print)                    |
 | Max label length | ~2400 dots (~11.8")                                |
 | Bitmap command   | `GW` (Direct Graphic Write)                        |
 
@@ -63,20 +62,18 @@ Sticky Icky — browser-based design tool for the Zebra LP2844 thermal printer. 
 Layer state in App (React)
   → CanvasPreview renders each layer to its own offscreen canvas
   → xorComposite flattens visible layers onto the print canvas
-  → encodePrintPayload (frontend) packs 1bpp row-major MSB-first bytes (1=black, 0=white) and base64 encodes
+  → encodePrintPayload packs 1bpp row-major MSB-first bytes (1=black, 0=white) and base64 encodes
   → POST /print  { bitmap, width, height, labelW, labelH, darkness, speed, copies, xOffset, yOffset }
   → backend XORs every byte 0xFF (GW expects 0=black, 1=white)
-  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0 via pyserial @ 38400 8N1, RTS/CTS
+  → backend builds EPL2 GW payload and writes to /dev/ttyUSB0
 ```
 
 ### EPL2 payload format
 
-The backend assembles and sends this to the printer over serial:
-
 ```
 \r\n                                       — wake / line sync
-D{darkness}\r\n                            — print darkness (0–15)  ← config commands BEFORE N
-S{speed}\r\n                               — print speed (1–4)     ← (EPL2 manual p. 120)
+D{darkness}\r\n                            — print darkness (0–15)
+S{speed}\r\n                               — print speed (1–4)
 N\r\n                                      — clear image buffer
 q{width}\r\n                               — label width in dots (= padded bitmap width)
 Q{labelH},21\r\n                           — label height in dots + 21-dot inter-label gap
@@ -85,163 +82,118 @@ GW{xOffset},{yOffset},{width_bytes},{height}\r\n  — Direct Graphic Write
 P{copies}\r\n                              — print N copies
 ```
 
-Notes:
-- **Command ordering**: D and S are "Stored" configuration commands (EPL2 manual p. 38) and must appear before N per manual p. 120: "All printer configuration commands should be issued prior to issuing the N command."
-- The `q` command receives the *padded* bitmap width, not the user-facing label width — the printer expects q to match the byte count GW will stream.
-- **GW p1 and p2 are both in dots** (confirmed empirically and per EPL2 Programming Guide p. 108). xOffset and yOffset are passed directly to GW without conversion. Default xOffset=10 dots, yOffset=0 dots. The old code incorrectly treated p1 as bytes and divided by 8 — this was fixed after empirical testing confirmed the manual is correct.
-- Darkness and speed are **global settings** (not per-preset). Default D15 S1. Editable in the Settings modal (gear icon in the View button group).
-- **yOffset caveat**: the current rendering pipeline always sizes the bitmap to exactly `labelH` dots tall, so yOffset has no visible effect unless the pipeline changes to produce shorter bitmaps.
-
-### GW bit polarity
-
-GW expects `0 = black, 1 = white`. The frontend packs `1 = black, 0 = white` so the backend XORs every byte with `0xFF` before sending. **Do not change frontend packing — invert in the backend.**
+- **Command ordering**: D and S are "Stored" configuration commands and must appear before N (EPL2 manual p. 120: "All printer configuration commands should be issued prior to issuing the N command.").
+- The `q` command receives the *padded* bitmap width, not the user-facing label width — q must match the byte count GW will stream.
+- **GW p1 and p2 are both in dots** (EPL2 Programming Guide p. 108). `xOffset` and `yOffset` are passed directly to GW without conversion. Default xOffset=10 dots, yOffset=0.
+- **yOffset is currently inert**: the pipeline always sizes the bitmap to exactly `labelH` dots, so yOffset has no visible effect unless that changes.
+- **GW data follows immediately**: the binary bitmap follows the `GW` line right after its `\r\n` with no separator. Extra bytes desync the printer.
+- **Bit polarity is inverted**: GW expects `0=black, 1=white`; the frontend packs `1=black, 0=white`; the backend XORs every byte with `0xFF`. **Don't move the inversion to the frontend** — the canvas/composite pipeline assumes 1=black.
+- Darkness, speed, xOffset, yOffset, gammaCorrect are **global settings** in the IndexedDB `settings` store (Settings modal → Print tab), not per-preset.
 
 ---
 
 ## Deployment
 
-Both apps are containerized and deployed to a Synology NAS.
-
 ### Architecture
 
-- **frontend** container: nginx:alpine serving the Vite build on port 80, proxying `/api/` → `http://backend:8765/` (the `/api` prefix is stripped). SPA fallback routes unmatched paths to `index.html`.
-- **backend** container: python:3.12-slim running uvicorn on 8765 (exposed on the internal compose network only — nginx is the only ingress). `/dev/ttyUSB0` is passed in via compose `devices:` — the printer must be connected before starting the stack.
-- **Images**: `ghcr.io/nastronot/sticky-icky-frontend:latest`, `ghcr.io/nastronot/sticky-icky-backend:latest`. Also tagged with `:sha-<commit>` per build.
-- **CI**: `.github/workflows/build-and-push.yml` builds and pushes both images on every push to `main` using a matrix over frontend / backend.
+- **frontend** container: nginx:alpine serving the Vite build on port 80, proxying `/api/` → `http://backend:8765/` (the `/api` prefix is stripped). SPA fallback to `index.html`.
+- **backend** container: python:3.12-slim running uvicorn on 8765 (internal compose network only — nginx is the only ingress). `/dev/ttyUSB0` is mapped in via compose `devices:` — the printer must be connected before starting the stack.
+- **Images**: `ghcr.io/nastronot/sticky-icky-{frontend,backend}:latest`, also `:sha-<commit>` per build.
+- **CI**: `.github/workflows/build-and-push.yml` matrix-builds both on every push to `main`.
 
 ### Env vars
 
 | Var | Service | Default | Purpose |
 | --- | --- | --- | --- |
-| `VITE_API_URL` | frontend (build-time) | `http://localhost:8765` (dev) / `/api` (prod, via `.env.production`) | Base URL for fetch calls; the production build expects nginx to proxy `/api/` to the backend. |
-| `CORS_ORIGINS` | backend | `http://localhost:5173,http://localhost:4173,http://localhost:3000` | Comma-separated list of allowed origins. Set to the public domain (e.g. `https://sticky.example.com`) in prod. |
-| `SERIAL_PORT` | backend | `/dev/ttyUSB0` | Path to the printer's serial device inside the container; the host device is mapped in via compose `devices:`. |
+| `VITE_API_URL` | frontend (build-time) | `http://localhost:8765` dev / `/api` prod | Base URL for fetch. Prod build expects nginx to proxy `/api/`. |
+| `CORS_ORIGINS` | backend | `localhost:5173,4173,3000` | Comma-separated allowlist. Set to public domain in prod. Never `*`. |
+| `SERIAL_PORT` | backend | `/dev/ttyUSB0` | Serial device path inside the container. |
 
 ### Compose files
 
-- `docker-compose.yml` — local testing. Builds both images from source. Frontend on `localhost:3000`.
-- `docker-compose.prod.yml` — Synology. Pulls prebuilt GHCR images, reads `CORS_ORIGINS` from a `.env` file (copy `.env.example` → `.env` and set the real domain), passes `/dev/ttyUSB0` into the backend.
+- `docker-compose.yml` — local testing, builds from source, frontend on `localhost:3000`.
+- `docker-compose.prod.yml` — Synology NAS, pulls GHCR images, reads `.env` for `CORS_ORIGINS`, passes `/dev/ttyUSB0` into the backend.
 
 ### Security
 
-- **Non-root container**: the backend runs as a `printer` user (UID 1000, GID 20 / dialout) — not root. The dialout group provides access to `/dev/ttyUSB0`.
-- **Request body limit**: nginx enforces a 1 MB `client_max_body_size`; the Pydantic model caps `bitmap` at 1 MB of base64. An 832×2400 1-bit bitmap is ~62 KB base64 — the 1 MB ceiling is generous but well below memory-exhaustion territory.
-- **Rate limiting**: `/print` is limited to 10 requests/minute per IP via slowapi. The `/health` endpoint is not rate-limited.
-- **Input validation**: all `/print` fields are bounded by Pydantic (`width` 8–4096, `height` 1–4096, `darkness` 0–15, `speed` 1–4, `copies` 1–99). Width must be a multiple of 8. Bitmap size must match width×height exactly.
-- **Serial port validation**: `SERIAL_PORT` is regex-validated to `/dev/tty[A-Za-z0-9_]+` at startup — no path traversal, no arbitrary file writes.
-- **CORS**: origin allowlist is read from `CORS_ORIGINS` env var at startup. Requests from unlisted origins are rejected by Starlette's CORS middleware. Never set to `*`.
-- **FastAPI introspection disabled**: the app is constructed with `docs_url=None, redoc_url=None, openapi_url=None` so `/docs`, `/redoc`, and `/openapi.json` all 404. The backend exposes only `/print` and `/health`.
-- **No-indexing posture**: `frontend/public/robots.txt` is `User-agent: * / Disallow: /`, and `index.html` sets `<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">`. No sitemap is generated or served. This app is a private tool — search engines should not index any path.
-- **HTTP response headers (nginx)**: the frontend container sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: geolocation=(), camera=(), microphone=(), interest-cohort=()`, and a CSP (`default-src 'self'` plus Google Fonts for `style-src`/`font-src`, `data:`/`blob:` for `img-src`, `frame-ancestors 'none'`). The theme-bootstrap script that runs before first paint lives in `public/theme-bootstrap.js` and is loaded from `index.html` via a same-origin `<script src="/theme-bootstrap.js">`. Both `style-src` and `script-src` allow `'unsafe-inline'`: React emits runtime inline `style="…"` attributes, and the site sits behind Cloudflare Access where various optional features (Email Obfuscation, Rocket Loader, Web Analytics, Bot Management challenge pages) inject their own inline `<script>` blocks into the HTML before it reaches the browser — hash-pinning those is unmaintainable. The marginal added risk is small since `script-src 'self'` already lets any same-origin script run; `'unsafe-inline'` only widens that to inline blocks, and we render no user-supplied HTML. `script-src` also includes `'wasm-unsafe-eval'` so the browser can compile the Tesseract.js OCR engine's WebAssembly module on demand.
-- **HSTS lives at the edge**, not in this container. The Synology reverse proxy / Let's Encrypt layer terminates HTTPS and is the right place to set `Strict-Transport-Security`. Do not add HSTS via `add_header` in `frontend/nginx.conf`.
-- **Dependency pin policy**: both `frontend/package.json` and `backend/requirements.txt` pin every dependency to an exact version (no `^`, `~`, `>=`). Upgrades are deliberate — run `npm audit` / `pip-audit` as part of the upgrade, not at build time. `package-lock.json` is committed. `@types/*` packages are not installed because the frontend is pure JSX.
-- **Network layer**: the app assumes Cloudflare Access (or equivalent: VPN, LAN-only) in front. There is no built-in authentication. Do not expose the backend directly to the internet.
+- **Non-root container**: backend runs as `printer` (UID 1000, GID 20 / dialout).
+- **Body limits**: nginx `client_max_body_size 1m`; Pydantic caps `bitmap` at 1 MB base64. An 832×2400 1-bit bitmap is ~62 KB base64.
+- **Rate limiting**: `/print` is 10 req/min/IP via slowapi. `/health` is unlimited.
+- **Input validation**: Pydantic bounds — `width` 8–4096 (multiple of 8), `height` 1–4096, `darkness` 0–15, `speed` 1–4, `copies` 1–99. Bitmap size must match width×height.
+- **Serial path**: `SERIAL_PORT` is regex-validated to `/dev/tty[A-Za-z0-9_]+` at startup.
+- **CORS**: origin allowlist from env. **Never `*`**.
+- **FastAPI introspection disabled**: `docs_url=None, redoc_url=None, openapi_url=None`. Only `/print` and `/health` are exposed.
+- **No-indexing**: `robots.txt` disallows everything, `<meta name="robots">` in `index.html` reinforces.
+- **nginx headers**: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: geolocation=(), camera=(), microphone=(), interest-cohort=()`, plus a CSP. CSP allows `'unsafe-inline'` on `script-src` and `style-src` because React emits inline `style="…"` and Cloudflare Access injects inline `<script>` blocks (Email Obfuscation, Rocket Loader, etc.) — hash-pinning is unmaintainable. CSP also includes `'wasm-unsafe-eval'` for Tesseract.js and `worker-src 'self' blob:` for its worker.
+- **HSTS lives at the edge** (Synology reverse proxy / Let's Encrypt). Do not add `Strict-Transport-Security` in `frontend/nginx.conf`.
+- **Dependency pin policy**: every dep in `frontend/package.json` and `backend/requirements.txt` is pinned to an exact version (no `^`, `~`, `>=`). `package-lock.json` is committed. No `@types/*` — the frontend is pure JSX.
+- **Network layer**: app assumes Cloudflare Access / VPN / LAN-only in front. No built-in auth. Do not expose the backend directly to the internet.
 
 ---
 
-## Frontend feature surface (current)
+## Frontend internals worth knowing
 
-- **Layer types**: Big Text (auto-fit to label), free Text (positioned, sized via fontSize), Address (multi-line auto-fit to layer bounds — see below), Image (import + pipeline + drag/scale/rotate/flip + crop), Shape (five kinds: rectangle, ellipse, polygon, star, line — see below). The legacy standalone Fill layer has been folded into `shape/rectangle`; saved designs with `type:"fill"` are promoted to `type:"shape", shapeKind:"rectangle"` in `deserializeLayer` (load-time shim — stored records are rewritten naturally on next save).
-- **Address layer** (`type:"address"`, renderer `utils/renderAddress.js`): purpose-built for mailing-label blocks (e.g. Postcrossing), including long Chinese addresses that don't fit a fixed-field template. **Occupies the full label bounds like Big Text** — no x/y/width/height/rotation, no drag/resize/rotation handles, no position controls in the editor. Single multiline text field hard-capped at 7 lines — Enter is blocked on the 7th line and extras are stripped on paste. The renderer binary-searches the largest font size that fits the address area (full label or banner-reduced — see below) minus `PAD` on every side (same constant as Big Text) and multiplies by `sizeScale` (0.25..1, default 1 = auto-fit max) — the size slider is the only manual size adjustment. Each line is drawn left-aligned within a block whose width equals the widest line; the block is centered horizontally and vertically within the address area. Auto-fit recomputes on every text/font/weight/italic/label-size/ID change, and the bold metrics feed both the fit search and the final render. Selection from the canvas works via double-click anywhere (the same fallback path Big Text uses, now shared). Legacy saved designs that stored x/y/width/height/rotation on Address layers load fine — those fields are silently ignored at render time and never read again. The editor exposes a Bold / Regular weight toggle that applies to the whole block (banner ID + address) — no per-line or per-range bolding. Font list is the shared set used by Text / Big Text. Factory default for new layers: `font: 'Inter'`, `bold: true`. The `+ Address` button in the Add Layer panel sits directly below `+ Image`, above the shape icon row.
-  - **Layout unit**: address block + (optional) banner render as a single unit, **centered both horizontally and vertically** in the label so padding above the banner equals padding below the address block, and padding to the left of the unit equals padding to the right. Both axes are bounded below by `OUTER_PAD` (≈4% of label height). There is **no** outer label border; the only stroke is the 1-dot hairline around the address block itself. Every dimension (banner content padding, flag gap, address inner padding, font sizes) is a fraction of label height so the entire unit scales together across stock sizes.
-  - **Address block border**: 1-dot black hairline framing the address rect. The address block **shrinks both horizontally and vertically to wrap the auto-fitted text** with `ADDRESS_INNER_PAD_FRACTION` (≈6% of label height) on every side — so the visible padding inside the border is uniform on all four sides regardless of how many lines the user enters. The address has a minimum width equal to the banner width so the banner never overhangs the address; when the banner forces a wider address than the text needs, the text is left-justified inside (slack falls on the right). The border is painted as four `fillRect` edges to stay crisp at print resolution.
-  - **Postcrossing ID banner**: optional `postcrossingId` field renders as a solid-black box at the **top-left of the address block** — banner left edge aligned with the address border's left edge, banner bottom flush with the address top border (no gap; banner is drawn after the border so it overlays the top-left corner of the frame). Banner contains the country flag immediately to the left of the white ID text. The ID is **always rendered uppercase** regardless of how the user types it. Banner **width is content-driven**: it grows to the right with the ID's text length (longer ID = wider banner). Internal banner padding is uniform on all sides (same horizontal and vertical distance from the box edges to the flag/text). ID font size defaults to ~11% of label height; if a long ID would push the banner past the inner-area width, the ID font shrinks to fit. When the ID field is empty, the banner is omitted entirely and the bordered address block fills the inner area on its own.
-  - **Flag registry**: `utils/flags.js` maps ISO 3166-1 alpha-2 codes (parsed from the ID prefix `XX-…`) to bundled SVG assets in `src/assets/flags/<code>.svg`. Currently only `US`. To add a country, drop a `<code>.svg` into the same directory (black-on-white source) and register it in `FLAG_URLS`. The renderer inverts the SVG at draw time via canvas `filter: 'invert(1)'`, so the on-disk file is plain black-on-white and the banner shows white-on-black without maintaining a parallel inverted asset. Unknown country codes fall back to "no flag, ID only" — the banner renders without the flag glyph.
-  - **OCR address from image**: an "OCR from image…" button under the address textarea opens a modal (`OcrModal.jsx`) that accepts a drag-dropped image, a clipboard paste, or a file picker. The image is OCR'd via Tesseract.js (`utils/ocr.js`), the recognized text is split on `\n`, trimmed, empty lines removed, capped at `ADDRESS_MAX_LINES`, and the resulting `\n`-joined string **replaces** the address textarea outright — the user edits any OCR errors afterward. The Postcrossing source (postcrossing.com) hands out new addresses as flat images, so this is the fast path for filling the textarea without retyping.
-    - **Engine**: client-side Tesseract.js. All assets are served same-origin from `/tesseract/` — `scripts/setup-tesseract.mjs` copies the worker + WebAssembly cores out of `node_modules/tesseract.js{,-core}/` and downloads the language data files (`tessdata_fast` variant from the standard tessdata CDN) as a postinstall step. The directory is in `.gitignore` and regenerated on every `npm install`. Tesseract.js itself is loaded via dynamic `import()` so its code stays in a Vite-split chunk that only downloads when the user clicks the OCR button.
-    - **Languages**: bundled as multilingual recognition — every worker loads `eng + chi_sim + chi_tra + jpn + rus` concurrently to cover the top-10 Postcrossing origin countries (English, Chinese Simplified + Traditional, Japanese, Russian). Tessdata_fast keeps each language to ~1.5–2 MB compressed (~8 MB total for all five) at a 1–2% accuracy cost on clean printed text vs the full models. To swap variants (e.g. to `4.0.0_best` for higher accuracy), change `TESSDATA_VARIANT` in `setup-tesseract.mjs`; a sentinel file (`public/tesseract/.variant`) triggers a re-download of all language packs when the variant string changes.
-    - **CSP**: `'wasm-unsafe-eval'` is in `script-src` (lets the browser compile the Tesseract WASM module), and `worker-src 'self' blob:` is set explicitly because Tesseract spawns its worker from the same-origin URL plus an internal blob for option injection. The `/tesseract/` path has its own `try_files $uri =404` location block so missed feature-detect probes (e.g. `tesseract-core-relaxedsimd-lstm.wasm.js` on browsers that don't support it) return a clean 404 instead of falling through to the SPA's `index.html` and tripping the importScripts MIME check.
-    - **Paste-handler coordination**: `utils/ocrModalState.js` is a tiny module-level open flag the modal flips on mount/unmount. `App.jsx`'s document-level paste-image handler bails when the flag is set so a clipboard image meant for OCR doesn't simultaneously become a new Image layer.
-- **Image processing pipeline**: image layers run a fixed-order chain before being composited. Each step is a pure `ImageData → ImageData` transform. Order: **upscale → threshold OR dither**. The chain lives in `utils/renderImage.js#processImage`:
-  - **EPX upscale** (`utils/upscale.js`) — classic 2× pixel-art rule (Eric's Pixel Expansion / Scale2x). `layer.upscaleEnabled` boolean; only 2× is wired in the render path, though `epxUpscale` still accepts a factor argument should 4× ever come back. Comparisons are 32-bit RGBA equality so colour and alpha both have to match to trigger a corner replacement.
-  - **Threshold** (`utils/threshold.js`) — `layer.thresholdMode` is `"off" | "auto" | "manual"`. Auto picks the cutoff via Otsu's method; manual uses `layer.thresholdValue` (0–255). **When the mode is not `"off"` the downstream dither step is skipped and the Brightness / Dithering / Amount controls in the Image sidebar are hidden entirely** (not dimmed) — if a control isn't doing work, it isn't shown. `layer.threshold` (the existing brightness cutoff used by dither) is kept separate from `layer.thresholdValue` so the two features don't fight.
-  - Sobel edge detection was briefly wired in (v1.8.0) and then removed — any saved design with `edgeEnabled` / `edgeStrength` / `upscaleFactor:4` fields loads cleanly; the render path just ignores them.
-- **Gamma correction** (`utils/gamma.js`) — Canvas `ImageData` is sRGB-encoded, so a byte value of 128 represents ≈22% linear luminance, not 50%. Threshold and dither maths comparing against 128 in sRGB space therefore push the cutoff into the shadows and skew dithered midtones bright. When the global `gammaCorrect` flag is on, the per-channel sRGB bytes are routed through the 256-entry `SRGB_TO_LINEAR_LUT` before luma is computed, and the user-facing threshold cutoff is mapped through the same LUT before comparison — so the slider's perceptual meaning stays consistent across the toggle. The 0..255 byte range is preserved end-to-end (the LUT outputs bytes); no float pipeline. Gamma is a **global studio setting** (Settings → Print tab), persisted in the IndexedDB settings store under `gammaCorrect`. **Default off** so pre-existing saved designs render byte-for-byte the same as before; the user opts in deliberately. The flag is part of the `signatureOf(layer, gamma)` cache key in `renderImage.js`, so toggling it busts every image-layer cache entry and re-renders immediately. **Scope**: gamma is only applied in the image-layer pipeline (`ditherImage`, `applyThreshold`, `otsuThreshold`). The BigText/Text/Address/Fill/Shape sidebar dither (`applyDither`) reads near-binary text rasters and uses a synthetic lifted-black trick to give the diffuser something to work with — gamma is a no-op there (LUT[0]=0, LUT[255]=255 by definition), so it isn't threaded through that path.
-- **Dithering algorithms**: `none`, `bayer4`, `bayer8`, `floydSteinberg` / `floyd` (synonyms — see below), `atkinson`, `riemersma`. Both pipelines (`utils/dither.js#applyDither` for the BigText/Text/Address/Fill/Shape sidebar and `utils/dither.js#ditherImage` for image layers) accept the same algorithm ids. **Riemersma** (`utils/riemersma.js`) walks pixels along a Hilbert space-filling curve with a 16-entry ring buffer of past errors and exponential decay (ratio 16) — Riemersma's published defaults, not exposed to the user. The result is isotropic noise — no diagonal grain like FS, no row banding — at the cost of ~150 LoC for the curve walker. Vanilla Hilbert covers 2ⁿ × 2ⁿ grids only, so for arbitrary dims the walk pads to the next power of two and skips out-of-bounds steps; the end-of-curve underflow leaves a faint corner artefact that is intentionally not corrected. **`floydSteinberg` / `floyd` synonym**: the two pipelines historically used different ids — image layers stored `floydSteinberg`, while BigText/Text/Address/Fill/Shape stored `floyd`. The `applyDither` dispatcher accepts both so the dropdown can stay consistent across layer types. Saved designs that stored either name continue to render unchanged.
-- **Processed-image cache** (`utils/renderImage.js`) — keyed by layer id with a signature that captures every pipeline knob (originalImage ref, upscaleEnabled, threshold*, ditherAlgo, ditherAmount, threshold). The processed ImageData + an offscreen `source` canvas are cached so subsequent moves/rotations don't rerun the chain. All cache entries for absent layer ids are pruned after each render.
-- **Shape layer**: single `type:"shape"` record with a `shapeKind` discriminator. Rectangle/ellipse/polygon/star share the bounding-box frame (`x`, `y`, `width`, `height`, `rotation`) and use the same selection chrome + resize handles as Image/Text layers. Polygon adds `sides` (3–12, default 6); star adds `points` (3–12, default 5) and `innerRadiusRatio` (0.2–0.8, default 0.4). Line is special: geometry is two endpoints (`x1`/`y1`, `x2`/`y2`) plus `thickness` (1–5 integer, default 2) — no bounding box, no rotation. Both endpoints are draggable handles on canvas; body-drag translates the whole line. All shapes support fillPattern, invert, XOR, visibility, dithering like every other layer. Polygon/star vertices use the bbox as an ellipse (`radiusX = width/2`, `radiusY = height/2`) so stretched bboxes produce squished shapes — not a per-axis radius field but deliberate for consistency with the bbox resize handles.
-- **Per-layer**: position (x, y), size (width, height), rotation, flip H/V, fill pattern (Text/BigText/Shape only), invert, XOR composite toggle (off → overwrite), dithering (none / Bayer 4×4 / Bayer 8×8 / Floyd-Steinberg / Atkinson / Riemersma) with amount slider. Rotation slider is -180..+180 centered at 0 (stored values outside that range normalize to it on load via `normalizeRotation`).
-- **Fill patterns**: all patterns are 32×32 1-bit tileable bitmaps stored in IndexedDB (`patterns` store). On first run, 12 built-in patterns seed with stable ids `default-solid`, `default-gray-fine`, `default-gray-mid`, `default-gray-coarse`, `default-horizontal-lines`, `default-vertical-lines`, `default-diagonal-lines`, `default-grid`, `default-cross`, `default-brick`, `default-waves`, `default-diamonds`. A `patterns_seeded_v1` flag in the settings store guards against re-seeding defaults the user has explicitly deleted. Users can create, edit, delete, and favourite patterns — defaults and custom are unified (both records live in the `patterns` store, `isDefault: true` on the seeded ones). Pattern picker is a dropdown (swatch + label per entry) with "Create new pattern" and "Manage patterns…" actions at the bottom; created-from-picker patterns auto-select onto the current layer. Deletion from the manage modal scans saved designs for usage and warns with a count; layers referencing a deleted pattern silently fall back to `default-solid` at load via `getPattern`'s fallback. Restore Defaults re-seeds only the missing default-* ids. Pattern bitmaps live in a module-level registry in `patterns.js` kept in sync by `setPatternsRegistry`; canvas pattern cache is invalidated on every registry change.
-- **Legacy pattern-id shim**: designs saved before v1.6 reference patterns by short names (`"solid"`, `"waves"`, etc.). `deserializeLayer` maps those ids to the new `default-*` namespace on load. Unknown ids (custom patterns the user deleted) collapse to `default-solid` via `getPattern`'s fallback — no prompts, no errors. This is a load-time shim, not a rewrite of saved records.
-- **Canvas interaction**: drag, 8 resize handles (corners + edges), rotation handle, shift inverts the layer's `lockAspect` for the drag, shift snaps rotation to 45°. Pointer math handles viewport rotation.
-- **Compositing**: XOR (default) — overlapping black flips to white. Per-layer toggle for solid overwrite mode.
-- **Image crop**: per-image crop mode with draggable green crop rectangle, Apply replaces the layer's `originalImage` with the cropped slice.
-- **Save / load**: full design state to IndexedDB (`sticky_icky` db, `designs` store). Image layers serialize their `originalImage` as base64 PNG inside the JSON. Gallery shows a 3×3 paginated grid with PNG/JSON export, JSON import, favorites, storage usage readout. Designs reference their label stock by `presetId` (stable across reorder/delete); legacy designs that stored `presetIdx` are migrated on load.
-- **Save dialog** (`SaveDialog.jsx`): modal with Name + Demo Safe checkbox. Re-saving a design that was loaded pre-populates both fields. The dialog distinguishes Save from Save As by comparing the submitted name to the loaded design's name (case-insensitive, trimmed):
-  - **Save (same name)**: updates the loaded record in place, preserving its id, gallery slot, and favorite flag. Skips the overwrite prompt.
-  - **Save As (different name)**: generates a new id and inserts a new record, leaving the original design untouched in the gallery. The newly created record then becomes the active `loadedDesign` so subsequent Saves re-use its id.
-  - **Overwrite collision**: a case-insensitive name collision against a *different* existing design (not the one currently loaded) triggers an Overwrite / Cancel confirmation. Overwrite writes into the target's id (inheriting its gallery slot and favorite flag). Cancel returns to the form with the name still populated.
-  After any successful save the current design's identity is stamped as the new `loadedDesign`.
-- **Design schema** includes `demoSafe: boolean` (default false). Legacy records missing the field are backfilled on first `loadDesigns` and persisted back to IndexedDB — silent one-time migration per record.
-- **Demo mode**: hidden, session-only toggle (React state, not persisted). The "v" glyph in the version badge at bottom-left is the toggle — inactive it renders in the normal badge colour; active it glows `#FED00A`. When on, the gallery filters to designs with `demoSafe === true`, and pagination / page-count recalculate from the filtered set. Everything else in the UI is unchanged.
-- **Undo / redo**: 20-entry history with the same 350 ms burst coalescing. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y.
-- **Keyboard shortcuts**: arrow nudge (1 px / 10 px with shift), Delete to remove layer, Escape to deselect, Ctrl+D to duplicate, Ctrl+V to paste image from clipboard.
-- **Drag-and-drop image files** anywhere in the studio.
-- **Viewport modes**: Rotate view (90° CSS rotation, pointer math inverted), True size (uses calibrated screen DPI to render at physical inches; calibration via Settings modal).
-- **Label-size presets**: stored in IndexedDB (`sticky_icky.presets`). Shape: `{ id, label, w, h, favorite }`. User-managed list (add, delete, favorite). Custom sentinel always at the bottom of the dropdown lets the user specify W/H in inches directly.
-- **Global settings**: darkness, speed, xOffset, yOffset, gammaCorrect, screenDPI, theme, accent — stored in IndexedDB `settings` store. Edited via the Settings modal (gear icon in the View button group). These are global, not per-preset.
-- **Settings modal**: tabbed (Print / Display / Appearance). Print tab: darkness slider, speed slider, X/Y offset inputs in dots, and a gamma-correction checkbox (off by default — see "Gamma correction" above). Display tab: screen DPI calibration with ruler drag UI. Appearance tab: theme segmented control (Light / Dark / OLED) and accent swatch grid (9 accents).
-- **Theme system** (`utils/theme.js` + `components/studio.css`):
-  - Three themes: `light`, `dark`, `oled`. Nine accents in swatch order: `zebra-yellow` (default), `hot-magenta`, `cyber-cyan`, `acid-lime`, `blaze-orange`, `riot-purple`, `siren-red`, `royal-blue`, `graphite`. Graphite (`#8A8A8A`) is the deliberately low-saturation neutral option. Stored as `theme` and `accent` keys in the IndexedDB `settings` store — no DB version bump because the store is key-value.
-  - Applied by adding `theme-<name>` + `accent-<id>` classes to `<html>`. The selectors use an `html.` prefix (specificity 0,1,1) so they beat the `:root` default block (0,1,0) regardless of source order. Theme class sets surfaces + text tokens; accent class sets `--accent` and `--accent-fg`. `--accent-hover` is derived via `color-mix(in srgb, var(--accent), white 15%)` so it adapts to whichever accent is active.
-  - CSS tokens: `--bg-app` (page), `--bg-panel` (sidebars + modals), `--bg-studio` (canvas area — OLED uses `#101010` to give pure-black stickers visible edges against the otherwise `#000000` chrome), `--bg-elevated` (inputs, cards, dropdowns), `--bg-hover`, `--border`, `--border-subtle`, `--text-primary`/`-secondary`/`-muted`, `--accent`, `--accent-hover`, `--accent-fg`, `--accent-glow` (color-mixed), `--favorite-bg` (color-mixed), `--danger` (`#D00B14`, fixed across all themes, never remapped to accent).
-  - Siren Red is an accent, `--danger` is the brand red — they're distinct hexes (`#FF1744` vs `#D00B14`). Delete/error UI always uses `--danger`.
-  - Flash-of-unthemed-content avoidance: `index.html` has a tiny pre-paint script that adds the default classes (`theme-oled accent-zebra-yellow`) to `<html>` synchronously. `:root` in `studio.css` also defines the default token values directly, so even before the script runs the first paint is correct. App.jsx then loads the persisted choice from IndexedDB and swaps classes if needed.
-  - Canvas-drawn chrome (selection handles, crop rect in `CanvasPreview.jsx`) reads `--accent` off the canvas element via `getComputedStyle` at draw time so it tracks the live theme without a prop.
-  - To add a new accent: append an entry to `ACCENTS` in `utils/theme.js` with `id`, `name`, `value`, `fg`, and add a matching `.accent-<id> { --accent: …; --accent-fg: …; }` rule in `studio.css`. To add a new theme: append the id to `THEMES` in `utils/theme.js` and an icon lookup in `Settings.jsx`, plus a `.theme-<id> { … }` block with the full token set.
-- **Fonts**: Google Fonts collection (Inter, Bebas Neue, Comic Neue, Press Start 2P, VT323, Silkscreen, Bungee, Boldonse, Barriecito, Creepster, Great Vibes, Jacquarda Bastarda 9, Jersey 10, New Rocker, Atkinson, Impact, Arial Black, Courier New, Georgia).
+### Schema migrations and load-time shims
 
----
+These run silently on load and let old saved designs keep working. **If you touch the deserializer, preserve them.** Source of truth: `frontend/src/utils/storage.js` (`deserializeLayer` / `deserializeDesign`) and `frontend/src/components/App.jsx` (one-time migration block).
 
-## Tech Stack
+- `type:"fill"` layers → promoted to `type:"shape", shapeKind:"rectangle"`.
+- Legacy short pattern ids (`"solid"`, `"waves"`…) → mapped to `default-*` via `mapLegacyPatternId`. Unknown ids fall back to `default-solid` in `getPattern`.
+- Address layers' stored `x`/`y`/`width`/`height`/`rotation` are ignored at render time — Address occupies the full label.
+- Image layers' obsolete `edgeEnabled` / `edgeStrength` / `upscaleFactor:4` fields (Sobel edge detection, removed) are accepted but ignored.
+- `presetIdx` (numeric index) → resolved to stable `presetId` against the current dropdown. Out-of-range falls back to Custom with stored `customW`/`customH`/`labelW`/`labelH`.
+- `demoSafe` field is backfilled to `false` on first load and persisted back (silent one-time per record).
+- `xOffset_v2_migrated` flag (settings store): one-time divide-by-8 fix for stored xOffset values > 40 (pre-bugfix when offset was wrongly bytes).
+- `patterns_seeded_v1` flag (settings store): guards against re-seeding default patterns the user deleted. Restore Defaults re-seeds only the missing default-* ids.
+- IndexedDB v1→v2 migration (one-time) pulls presets from `localStorage:thermal_label_presets_v2` and screen DPI from `localStorage:thermal_screen_dpi`, then deletes the localStorage keys.
 
-| Layer         | Choice                                              |
-| ------------- | --------------------------------------------------- |
-| Frontend      | React 19, Vite 8                                    |
-| Canvas        | HTML5 Canvas API (no Konva — that's spec leftovers) |
-| Icons         | lucide-react                                        |
-| Dithering     | Hand-rolled in `src/utils/dither.js`                |
-| Storage       | IndexedDB (`sticky_icky` db v3) — designs, presets, settings (theme/accent/screenDPI/print settings), patterns |
-| Backend       | FastAPI + pyserial                                  |
-| Printer write | `serial.Serial('/dev/ttyUSB0', 38400, 8N1, rtscts=True)` |
+### Image processing pipeline
+
+`utils/renderImage.js#processImage`: **upscale → (threshold XOR dither)**. Threshold modes are `"off" | "auto" | "manual"`; when not `"off"`, the dither step is skipped and the Brightness / Dithering / Amount controls hide entirely (hidden, not dimmed — if a control isn't doing work, it isn't shown). Cache keyed by layer id; signature includes every pipeline knob plus the global `gammaCorrect` flag so toggling busts every image-layer cache entry.
+
+### Gamma correction
+
+- Canvas `ImageData` is sRGB; a byte of 128 is ≈22% linear luminance, not 50%, so threshold/dither maths against 128 in sRGB skew midtones bright.
+- Global `gammaCorrect` flag (Settings → Print) routes sRGB bytes through `SRGB_TO_LINEAR_LUT` before luma is computed, and maps the threshold cutoff through the same LUT before comparison.
+- **Default off** — pre-existing designs render byte-identical to before; users opt in.
+- **Scope**: image-layer pipeline only (`ditherImage`, `applyThreshold`, `otsuThreshold`). The sidebar dither (`applyDither`) reads near-binary text rasters where gamma is a no-op, so it isn't threaded through.
+
+### Dither algorithm ids
+
+`utils/dither.js#applyDither` (sidebar) and `#ditherImage` (image layers) accept the same ids: `none`, `bayer4`, `bayer8`, `floydSteinberg` / `floyd` (synonyms — both ids are accepted because the pipelines historically diverged), `atkinson`, `riemersma`. Don't break the `floyd`/`floydSteinberg` synonym — saved designs use both.
+
+### Postcrossing flag registry
+
+`utils/flags.js` maps ISO 3166-1 alpha-2 codes (parsed from the ID prefix `XX-…`) to SVG assets in `src/assets/flags/<code>.svg`. To add a country: drop a **black-on-white** SVG and register the code in `FLAG_URLS`. The renderer inverts at draw time with canvas `filter: 'invert(1)'`, so a single on-disk asset serves the white-on-black banner. Unknown codes fall back to "no flag, ID only".
+
+### Tesseract.js OCR
+
+- Client-side, all assets same-origin from `/tesseract/`. `scripts/setup-tesseract.mjs` (npm postinstall) copies the worker + WASM cores out of `node_modules/tesseract.js{,-core}/` and downloads the `tessdata_fast` language packs. `public/tesseract/` is gitignored and regenerated each `npm install`. A `public/tesseract/.variant` sentinel triggers re-download when `TESSDATA_VARIANT` changes.
+- Bundled languages: `eng + chi_sim + chi_tra + jpn + rus` (≈8 MB compressed total). Loaded together by every worker.
+- Tesseract.js is dynamically `import()`-ed so its code only downloads when the user clicks the OCR button.
+- `/tesseract/` has its own `try_files $uri =404` in nginx so feature-detect probe misses return clean 404 instead of falling through to `index.html` and tripping importScripts MIME checks.
+- `utils/ocrModalState.js` is a module-level open flag the modal toggles. `App.jsx`'s document-level paste-image handler bails when it's set so a clipboard image meant for OCR doesn't also become an Image layer.
 
 ---
 
 ## Commands
 
-### Backend
-
 ```bash
-cd ~/dev/thermal/backend
-. venv/bin/activate
-uvicorn main:app --reload --port 8765
-```
+# Backend dev
+cd backend && . venv/bin/activate && uvicorn main:app --reload --port 8765
 
-### Frontend
+# Frontend dev
+cd frontend && npm run dev    # vite on http://localhost:5173
+                # npm run build / lint / test
 
-```bash
-cd ~/dev/thermal/frontend
-npm run dev      # vite dev server on http://localhost:5173
-npm run build    # production build → dist/
-npm run lint     # eslint
-npm run test     # vitest
-```
-
-### Docker
-
-```bash
-# Local: build + run both containers
+# Local docker
 docker-compose up --build
 
-# Production (on the Synology NAS): pull prebuilt images from GHCR
+# Prod docker (Synology NAS)
 docker-compose -f docker-compose.prod.yml pull
 docker-compose -f docker-compose.prod.yml up -d
-```
 
-### Manual print test (raw EPL2 over serial)
-
-```bash
-# Send a raw EPL2 file directly to the printer
+# Manual print test (raw EPL2)
 cat test.epl > /dev/ttyUSB0
 
 # Printer status query (UQ command)
@@ -252,30 +204,21 @@ sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill 
 
 ## Known Gotchas
 
-- **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (it produces blank labels). Serial is the *only* working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code; the LO-command fallback is gone.
-- **Baud rate is 38400** — the maximum reliable speed for this printer. 57600+ produces dropped bytes and partial labels. 9600 also works but is unnecessarily slow for full-page bitmaps.
-- **GW p1 is in dots, not bytes**: empirically confirmed via test prints at `GW10,0` vs `GW80,0`. The 2007 EPL2 Programming Guide p. 108 is correct: p1 is "Horizontal start position (X) in dots." The backend passes `req.xOffset` directly to GW without conversion. Default xOffset=10 dots, yOffset=0. No multiple-of-8 constraint on xOffset.
-- **GW offset history**: the original hardcoded `GW10,0` was 10 *dots* (not 10 bytes as previously assumed). Phase 1 introduced a `// 8` conversion that was wrong — it was dividing dots by 8, turning 80 into 10 and accidentally producing the right result. The conversion has been removed. Existing users' stored xOffset values > 40 are migrated by dividing by 8 (one-time, keyed on `xOffset_v2_migrated` flag in settings).
-- **`q` matches the bitmap width**, not `labelW`. The bitmap width is padded to the next multiple of 8 by the frontend; the `q` command must match what `GW` actually streams.
-- **Darkness × speed**: high darkness (D13+) at high speed (S2+) overdraws the head on dense rows and causes prints to fail partway through. Default global settings are `D15 S1` which is reliable for the dense raster art this app produces. Editable in the Settings modal.
-- **yOffset is inert given current pipeline**: the bitmap is always sized to exactly `labelH` dots, so yOffset has no effect. The field exists for future calibration features that may produce shorter bitmaps.
-- **Per-stock settings were reverted**: Phase 1 added per-preset D/S/offset fields. These were removed — print settings are global. On load, any obsolete per-stock fields (`darkness`, `speed`, `xOffset`, `yOffset`, `calibrated`, `calibratedAt`) are silently stripped from presets in IndexedDB.
-- **245 KB image buffer** is the hard ceiling for a single print. An 832×2400 1-bit bitmap is ~249 KB and will fail. Test large prints early.
-- **`/dev/ttyUSB0` permissions**: the user needs to be in the `dialout` (or `uucp`) group, e.g. `sudo usermod -aG dialout matt`. **The permission resets every time the USB-to-serial adapter is reconnected**, so an `udev` rule or `chmod 666 /dev/ttyUSB0` is the easy workaround for dev.
-- **GW data follows immediately**: the binary bitmap follows the `GW` command line right after its `\r\n` with no separator. Any extra bytes between the command and the data desync the printer.
-- **Bit polarity is inverted**: GW expects `0=black, 1=white`. The frontend packs `1=black, 0=white`. The backend XORs every byte with `0xFF` before sending. Don't move that inversion to the frontend — the rest of the canvas/composite pipeline assumes 1=black.
-- **CUPS raw queue** (`ZebraLP2844`) exists if `lpstat` is run, but the backend bypasses CUPS entirely and writes directly to the serial device.
-- **Dithering must be applied before encoding** — the printer has no grayscale capability whatsoever.
-- **IndexedDB v1→v2 migration**: on first load after the v2 upgrade, presets migrate from `localStorage:thermal_label_presets_v2` and screen DPI from `localStorage:thermal_screen_dpi` into IndexedDB stores (`presets` and `settings`). The localStorage keys are deleted after successful migration. If migration fails, the app seeds fresh defaults.
-- **presetIdx→presetId migration**: saved designs created before v2 store `presetIdx` (an index). On load, `deserializeDesign` resolves the index to a stable `presetId` using the current dropdown list. If the index is out of range (presets were deleted/reordered), the design falls back to the Custom preset with its stored `customW`/`customH`/`labelW`/`labelH` so it still renders at the right size.
+- **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (silently produces blank labels). Serial is the only working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code.
+- **Baud rate is 38400** — the maximum reliable speed. 57600+ drops bytes and produces partial labels. 9600 works but is slow for full-page bitmaps.
+- **245 KB image buffer is a hard ceiling**: an 832×2400 1-bit bitmap is ~249 KB and will fail. Test large prints early.
+- **Darkness × speed**: D13+ at S2+ overdraws the head on dense rows and stalls partway through. Defaults D15 S1 are reliable for this app's dense art.
+- **`/dev/ttyUSB0` permissions**: user needs `dialout` (or `uucp`) group. Permission resets every time the adapter is reconnected — udev rule or `chmod 666 /dev/ttyUSB0` is the dev workaround.
+- **CUPS raw queue** (`ZebraLP2844`) may exist on the dev box, but the backend bypasses CUPS entirely and writes the serial device directly.
+- **Dithering must be applied before encoding** — the printer has no grayscale capability.
 
 ### Frontend rendering quirks
 
-- **imageSmoothingEnabled must be false on all offscreen contexts**: canvas 2D contexts default to `imageSmoothingEnabled = true`. When 1-bit pattern tiles are drawn via `ctx.createPattern()`, smoothing anti-aliases pattern pixels at sub-pixel positions (caused by fractional `translate` values). The XOR compositor discards pixels with `R >= 128`, so anti-aliased pattern pixels lighter than 50% gray become invisible — producing position-dependent pattern dropout. Every render function (renderFillLayer, renderTextLayer, renderBigText drawText) must set `ctx.imageSmoothingEnabled = false` before drawing. The preview canvas also has CSS `image-rendering: pixelated` for crisp zoom.
-- **Canvas font rendering**: always `await document.fonts.load(fontSpec)` before measuring or drawing. Skipping this causes `measureText` to return stale metrics for the previous font, producing a mis-sized render that corrects itself one frame later.
-- **Canvas display scale**: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — relying solely on `ResizeObserver` introduces a one-frame lag when label size changes. Use `Math.min(availW / labelW, availH / labelH)` to fit both axes. Guard: if the rect is zero (layout not yet run on first mount), skip the synchronous set and let `ResizeObserver` handle the first paint. Initialize `displayScale` to `0` so the canvas is invisible for one frame on first mount instead of flashing at full 832 px width.
-- **Canvas text height**: use `textBaseline = 'alphabetic'` with `actualBoundingBoxAscent` / `actualBoundingBoxDescent` from `ctx.measureText()`. The `size * 1.15` heuristic underestimates heavy fonts like Arial Black.
-- **Justify alignment** in Big Text: all lines (including the last) are fully justified — per-line letter spacing is `(maxW - naturalW) / (charCount - 1)`. Single-character lines fall back to left-aligned.
-- **Text style toggles** (All Caps, Small Caps, Italic) are non-destructive — the textarea value is never modified. Display text is derived: `(allCaps || smallCaps) → text.toUpperCase()`. All Caps and Small Caps are mutually exclusive; Italic is independent. Small Caps renders originally-lowercase characters at 70% of the fitted size — the original text is passed alongside the display text so `measureLine`/`drawLine` can check per-character case via `scInfo.origLine`.
-- **Pointer interaction in rotated viewport**: when `viewportRotation === 90`, the inverse-rotation is `(canvasX, canvasY) = (sy, labelH - sx)` — applied once at the `screenToCanvas` boundary, so all downstream interactions (move, resize, rotate, hit testing) work in canvas space without any further branching.
-- **Refs mirrored from props/state**: long-lived event handlers (keydown, pointer) are bound once and read fresh values from refs. The ref assignments live inside a `useEffect` so React's "no refs during render" rule isn't violated.
+- **`imageSmoothingEnabled = false` on every offscreen context**: canvas 2D defaults to `true`. With 1-bit patterns via `ctx.createPattern()`, smoothing anti-aliases at sub-pixel positions (from fractional `translate`); the XOR compositor discards `R >= 128`, so anti-aliased pixels lighter than 50% gray disappear — position-dependent pattern dropout. Every render function must set this to `false` before drawing. The preview canvas also has CSS `image-rendering: pixelated`.
+- **Fonts before measure**: always `await document.fonts.load(fontSpec)` before `measureText` or draw. Skipping causes stale metrics from the previous font and a mis-sized render that corrects one frame later.
+- **Canvas display scale**: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — `ResizeObserver` alone adds a one-frame lag on label-size changes. Initialize to `0` so the canvas is invisible for one frame instead of flashing at full 832 px. Guard zero-rect on first mount and let `ResizeObserver` handle that paint.
+- **Canvas text height**: use `textBaseline = 'alphabetic'` with `actualBoundingBoxAscent` / `actualBoundingBoxDescent`. The `size * 1.15` heuristic underestimates heavy fonts like Arial Black.
+- **Big Text justify**: all lines (including the last) are fully justified — per-line letter spacing is `(maxW - naturalW) / (charCount - 1)`. Single-character lines fall back to left-aligned.
+- **Non-destructive text-style toggles**: All Caps / Small Caps / Italic never modify the textarea. Display text is derived. All Caps and Small Caps are mutually exclusive; Italic is independent. Small Caps renders originally-lowercase chars at 70% of fitted size via a parallel `origLine`.
+- **Rotated viewport pointer math**: when `viewportRotation === 90`, the inverse is `(canvasX, canvasY) = (sy, labelH - sx)` — applied once at the `screenToCanvas` boundary so all downstream interactions stay branch-free.
+- **Refs mirrored from props/state**: long-lived event handlers (keydown, pointer) bind once and read fresh values from refs. Assign refs inside a `useEffect` to respect React's no-refs-during-render rule.

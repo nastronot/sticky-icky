@@ -16,16 +16,29 @@ Yes, the output is crunchy. Yes, the dithering is loud. Yes, photos look like th
 
 - **Big Text** — type something, it auto-sizes to fill the entire label
 - **Free Text** — positioned text with manual font size, rotation, flip
-- **Image** — import PNG/JPG/GIF/WebP via drag-and-drop, paste from clipboard, or file picker. Crop, rotate, scale, flip.
-- **Solid Fill** — black rectangle for white-on-black backgrounds
+- **Address** — multi-line mailing block that auto-fits to the label, optional country-flag Postcrossing ID banner, OCR an address straight out of an image. See [Address layer](#address-layer) below.
+- **Image** — import PNG/JPG/GIF/WebP via drag-and-drop, paste from clipboard, or file picker. Crop, rotate, scale, flip. Optional EPX 2× upscale for pixel art, plus Otsu auto / manual threshold mode that bypasses dithering for clean line art.
+- **Shape** — rectangle, ellipse, polygon (3–12 sides), star (3–12 points), or line. The old standalone Solid Fill layer is now a black-filled rectangle.
 
 ### Dithering
 
-Photos and grayscale images need to be converted to pure black and white for the thermal printer. The app includes five dithering algorithms (Floyd-Steinberg, Atkinson, Bayer 4x4, Bayer 8x8, and simple threshold) with an adjustable amount slider. Each layer has its own dithering settings.
+Photos and grayscale images need to be converted to pure black and white for the thermal printer. The app includes five dithering algorithms — Floyd-Steinberg, Atkinson, Riemersma (Hilbert-curve), Bayer 4×4, and Bayer 8×8 — with an adjustable amount slider. Each layer has its own dithering settings. Optional sRGB gamma correction in Settings keeps midtones honest across the threshold cutoff.
 
 ### Compositing
 
 Layers composite with XOR by default — where two black regions overlap, they flip to white. This lets you cut shapes out of other shapes. You can switch any layer to plain overwrite mode instead.
+
+### Fill patterns
+
+Text, Big Text, Address, and Shape layers can be filled with 1-bit patterns instead of solid black — solid, dotted greys, lines, grids, bricks, waves, diamonds. Twelve built-ins, plus a 32×32 editor for rolling your own. Favourites, deletion-with-usage-check, and a graceful fallback to solid for designs that reference a deleted custom pattern.
+
+### Address layer
+
+Made for mailing-label blocks — Postcrossing, the local craft fair, whatever. The address layer occupies the full label like Big Text (no x/y/size handles — it owns the label) and binary-searches the largest font size that fits all your lines into the available area. Up to seven lines, bold/regular toggle, the same 18-font dropdown as the other text layers. A 1-dot black hairline frames the address; the frame shrinks to wrap the fitted text with even padding on all four sides regardless of how many lines you typed.
+
+**Postcrossing ID banner.** Drop a Postcrossing ID (e.g. `US-12345`) into the ID field and a solid-black banner appears in the top-left corner of the address frame, with the country flag and the ID printed in white. The country code is parsed from the `XX-…` prefix; the banner grows to the right as the ID gets longer. Currently only the US flag ships in the box — to add a country, drop a black-on-white SVG into `frontend/src/assets/flags/<XX>.svg` and register the ISO code in `frontend/src/utils/flags.js`. Unknown codes fall back to "no flag, ID only".
+
+**OCR from image.** Postcrossing hands out new addresses as flat images. The "OCR from image…" button under the address textarea opens a modal that accepts a drag-drop, a clipboard paste, or a file pick — Tesseract.js then OCRs it in your browser and dumps the recognized lines into the textarea, ready for you to fix up. All assets are served same-origin from `/tesseract/` — no third-party calls. The bundle includes English + Chinese (simplified & traditional) + Japanese + Russian language packs (≈8 MB compressed) to cover the top Postcrossing origin countries; languages are loaded together and the engine code itself is dynamically imported so the cost is only paid when you click the button.
 
 ### Typography
 
@@ -52,15 +65,15 @@ Text layers support All Caps, Small Caps, Italic, four horizontal alignments (le
 
 ### Saving and exporting
 
-- Save/load designs to your browser's local storage (IndexedDB)
+- Save / Save As to your browser's IndexedDB with overwrite-collision protection
 - Gallery with favorites, pagination, and storage usage readout
 - Export as PNG or JSON, import from JSON
-- Auto-save on every change with restore-on-load prompt
 
 ### Printing
 
 - One-click print with configurable copy count
-- Custom label-size presets (add, delete, favorite — saved to localStorage)
+- Custom label-size presets (add, delete, favorite — stored in IndexedDB)
+- Settings modal (gear icon) for darkness, speed, X/Y offset, gamma correction, screen-DPI calibration, plus three themes (Light / Dark / OLED) and nine accent colours
 
 ## Getting the hardware
 
@@ -138,7 +151,7 @@ The frontend does all the rendering. The backend is ~120 lines — it just valid
 
 - **Frontend**: React 19, Vite 8, HTML5 Canvas (no frameworks), lucide-react icons
 - **Backend**: FastAPI, pyserial, slowapi (rate limiting)
-- **Storage**: IndexedDB for designs, localStorage for settings
+- **Storage**: IndexedDB — designs, presets, patterns, and settings (theme, accent, screen DPI, print params)
 - **Protocol**: EPL2 over serial — 38400 baud, 8N1, RTS/CTS hardware flow control
 
 ## Security
@@ -205,7 +218,7 @@ Rebranded units require [DCHHV/patch2844](https://github.com/DCHHV/patch2844), a
 
 **Why this wasn't done:** the serial path works, it works on every LP2844 regardless of branding, there's no risk of bricking the printer mid-flash, and the current architecture doesn't benefit meaningfully from switching transports. Updating is optional, low-value, and non-trivial in the rebranded case.
 
-**Why updating might break Sticky Icky for you:** if you update your firmware and the new version handles EPL2 commands differently — different offsets, different buffer behavior, different `GW` semantics — the printed output may shift, truncate, or fail in new ways. The hard-coded bitmap offset in `backend/main.py` (`GW10,0`), the 245 KB image buffer limit, and the 38400 baud setting are all calibrated to the specific combination of firmware and hardware this project was built against. YMMV after an update.
+**Why updating might break Sticky Icky for you:** if you update your firmware and the new version handles EPL2 commands differently — different offsets, different buffer behavior, different `GW` semantics — the printed output may shift, truncate, or fail in new ways. The default `GW10,0` bitmap offset (configurable in Settings), the 245 KB image buffer limit, and the 38400 baud setting are all calibrated to the specific combination of firmware and hardware this project was built against. YMMV after an update.
 
 ## Troubleshooting
 
@@ -215,9 +228,9 @@ Rebranded units require [DCHHV/patch2844](https://github.com/DCHHV/patch2844), a
 
 **Print cuts off partway through.** You're probably hitting the printer's 245 KB image buffer limit. Try a shorter label or less dense content.
 
-**Label alignment is off.** The bitmap is offset 80 dots from the left edge of the print head to line up with standard label stock. If your labels are different, adjust the `GW10,0` offset in `backend/main.py`.
+**Label alignment is off.** Open the Settings modal (gear icon) → Print tab and tweak the X/Y offset (in dots). The defaults are X=10, Y=0, which line up with standard label stock — bump X up or down until your art lands where you want it.
 
-**High-darkness, high-speed prints fail partway through.** The LP2844 print head can't sustain D13+ darkness at S2+ speed on dense raster content — it overdraws and stalls. The shipped frontend hard-codes D15 S1, which is the empirically reliable combination for the dense art this app produces. If you change these, expect some experimentation.
+**High-darkness, high-speed prints fail partway through.** The LP2844 print head can't sustain D13+ darkness at S2+ speed on dense raster content — it overdraws and stalls. The defaults are D15 S1, the empirically reliable combination for the dense art this app produces. You can tweak both in the Settings modal at your own risk.
 
 **Firmware update won't take.** If you have a carrier-branded unit, stock Zebra firmware updates will be silently discarded. See [LP2844 firmware variants](#lp2844-firmware-variants).
 

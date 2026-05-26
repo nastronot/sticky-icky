@@ -169,7 +169,7 @@ These run silently on load and let old saved designs keep working. **If you touc
 ### Tesseract.js OCR
 
 - Client-side, all assets same-origin from `/tesseract/`. `scripts/setup-tesseract.mjs` (npm postinstall) copies the worker + WASM cores out of `node_modules/tesseract.js{,-core}/` and downloads the `tessdata_fast` language packs. `public/tesseract/` is gitignored and regenerated each `npm install`. A `public/tesseract/.variant` sentinel triggers re-download when `TESSDATA_VARIANT` changes.
-- Bundled languages: `eng + chi_sim + chi_tra + jpn + rus` (≈8 MB compressed total). Loaded together by every worker.
+- Bundled languages: `eng + deu + chi_sim + chi_tra + jpn + rus` (≈10 MB compressed total). Loaded together by every worker. German is required so addresses with `ß`/`ä`/`ö`/`ü` aren't misread — e.g. "Bogenstraße" came out "Bogenstralle" under English-only.
 - Tesseract.js is dynamically `import()`-ed so its code only downloads when the user clicks the OCR button.
 - `/tesseract/` has its own `try_files $uri =404` in nginx so feature-detect probe misses return clean 404 instead of falling through to `index.html` and tripping importScripts MIME checks.
 - `utils/ocrModalState.js` is a module-level open flag the modal toggles. `App.jsx`'s document-level paste-image handler bails when it's set so a clipboard image meant for OCR doesn't also become an Image layer.

@@ -38,12 +38,13 @@ const COPY = [
 ];
 
 // Languages bundled for the OCR feature. Postcrossing is global, so we
-// cover the top-10 origin countries: English, Chinese (Simplified +
-// Traditional), Japanese, and Russian. Using the `_fast` tessdata variant
-// keeps each language to ~1.5–2 MB (total ~7 MB compressed) with a
-// 1–2% accuracy hit on clean printed text vs the full models — fine for
-// the kind of clean-print address cards Postcrossing exchanges.
-const LANGS = ['eng', 'chi_sim', 'chi_tra', 'jpn', 'rus'];
+// cover the top-10 origin countries: English, German, Chinese (Simplified
+// + Traditional), Japanese, and Russian. German is required so ß/ä/ö/ü
+// aren't misread by an English-only model. Using the `_fast` tessdata
+// variant keeps each language to ~1.5–2 MB (total ~9 MB compressed) with
+// a 1–2% accuracy hit on clean printed text vs the full models — fine
+// for the kind of clean-print address cards Postcrossing exchanges.
+const LANGS = ['eng', 'deu', 'chi_sim', 'chi_tra', 'jpn', 'rus'];
 const TESSDATA_VARIANT = 'fast';                      // bumps every language's redownload when changed
 const TESSDATA_BASE = `https://tessdata.projectnaptha.com/4.0.0_${TESSDATA_VARIANT}`;
 const VARIANT_FILE = join(PUBLIC_DIR, '.variant');    // sentinel — switching variants triggers a refresh

@@ -7,11 +7,12 @@
 // wasm-load + traineddata-decompress cost.
 
 // Languages bundled and loaded into every worker. Postcrossing covers the
-// world, so we load English + Chinese (Simplified + Traditional) +
-// Japanese + Russian concurrently — Tesseract recognizes the union of
-// scripts in a single pass. Keep this in sync with LANGS in
-// scripts/setup-tesseract.mjs.
-const LANGS = ['eng', 'chi_sim', 'chi_tra', 'jpn', 'rus'];
+// world, so we load English + German + Chinese (Simplified + Traditional)
+// + Japanese + Russian concurrently — Tesseract recognizes the union of
+// scripts in a single pass. German is required so ß/ä/ö/ü aren't misread
+// (e.g. "Bogenstraße" → "Bogenstralle" under English-only). Keep this
+// in sync with LANGS in scripts/setup-tesseract.mjs.
+const LANGS = ['eng', 'deu', 'chi_sim', 'chi_tra', 'jpn', 'rus'];
 
 let workerPromise = null;
 

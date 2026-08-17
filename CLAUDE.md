@@ -204,7 +204,7 @@ sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill 
 
 ## Known Gotchas
 
-- **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (silently produces blank labels). Serial is the only working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code.
+- **Serial vs USB transport**: `GW` is non-functional over `/dev/usb/lp0` on V4.29 UPS-branded firmware (silently produces blank labels). Serial is the only working transport for raster output. The repo no longer contains any USB / `/dev/usb/lp0` code. **Do not re-add it.** Full rationale, the alternatives that were tried, and how to identify a rebranded-firmware unit: `README.md` § *Firmware and transport notes* — that is the authoritative account, not this line.
 - **Baud rate is 38400** — the maximum reliable speed. 57600+ drops bytes and produces partial labels. 9600 works but is slow for full-page bitmaps.
 - **245 KB image buffer is a hard ceiling**: an 832×2400 1-bit bitmap is ~249 KB and will fail. Test large prints early.
 - **Darkness × speed**: D13+ at S2+ overdraws the head on dense rows and stalls partway through. Defaults D15 S1 are reliable for this app's dense art.
@@ -214,8 +214,8 @@ sudo bash -c 'cat /dev/ttyUSB0 & echo -e "UQ\r\n" > /dev/ttyUSB0; sleep 2; kill 
 
 ### Frontend rendering quirks
 
-- **`imageSmoothingEnabled = false` on every offscreen context**: canvas 2D defaults to `true`. With 1-bit patterns via `ctx.createPattern()`, smoothing anti-aliases at sub-pixel positions (from fractional `translate`); the XOR compositor discards `R >= 128`, so anti-aliased pixels lighter than 50% gray disappear — position-dependent pattern dropout. Every render function must set this to `false` before drawing. The preview canvas also has CSS `image-rendering: pixelated`.
-- **Fonts before measure**: always `await document.fonts.load(fontSpec)` before `measureText` or draw. Skipping causes stale metrics from the previous font and a mis-sized render that corrects one frame later.
+- **`imageSmoothingEnabled = false` on every offscreen context**, and CSS `image-rendering: pixelated` on the preview. Non-negotiable for 1-bit output; the mechanism and why the dropout is position-dependent are in the vault (`canvas-image-smoothing-destroys-1-bit-output`).
+- **Fonts before measure**: `await document.fonts.load(fontSpec)` before `measureText` or draw, using the same string you assign to `ctx.font`. Also in the vault (`measure-text-only-after-fonts-load`), together with the `actualBoundingBox*` height rule below.
 - **Canvas display scale**: compute `displayScale` synchronously via `getBoundingClientRect()` in the same effect that sets `canvas.width/height` — `ResizeObserver` alone adds a one-frame lag on label-size changes. Initialize to `0` so the canvas is invisible for one frame instead of flashing at full 832 px. Guard zero-rect on first mount and let `ResizeObserver` handle that paint.
 - **Canvas text height**: use `textBaseline = 'alphabetic'` with `actualBoundingBoxAscent` / `actualBoundingBoxDescent`. The `size * 1.15` heuristic underestimates heavy fonts like Arial Black.
 - **Big Text justify**: all lines (including the last) are fully justified — per-line letter spacing is `(maxW - naturalW) / (charCount - 1)`. Single-character lines fall back to left-aligned.

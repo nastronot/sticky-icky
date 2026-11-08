@@ -108,7 +108,9 @@ The printer's USB-to-serial adapter must be plugged in before starting — Docke
 
 Images: `ghcr.io/nastronot/sticky-icky-frontend:latest` and `ghcr.io/nastronot/sticky-icky-backend:latest`.
 
-The frontend (nginx) serves the app on port 3000 and proxies `/api/` requests to the backend. The backend talks to the printer over serial.
+The frontend (nginx) serves the app on port 80 inside its container and proxies `/api/` requests to the backend. The backend talks to the printer over serial.
+
+`docker-compose.prod.yml` publishes **no host port**. The frontend joins an external Docker network named `edge`, and your tunnel or reverse-proxy container must join it too (`docker network create edge` once on the host). Route the public hostname to `http://sticky-icky-frontend:80`. This keeps the auth layer in front as the only way in: a published port would let anything on the same LAN reach the printer directly.
 
 ### Environment variables
 
@@ -156,7 +158,7 @@ The frontend does all the rendering. The backend is ~120 lines — it just valid
 
 ## Security
 
-There is no built-in authentication. The app assumes a trusted network layer in front — Cloudflare Access, a VPN, or LAN-only access. Do not expose the backend directly to the public internet.
+There is no built-in authentication. The app assumes a trusted network layer in front — Cloudflare Access, a VPN, or LAN-only access. Do not expose the backend directly to the public internet, and do not publish the frontend on a host port when an auth layer is meant to be the only way in: the frontend proxies `/api/print`, so its port is the printer's port.
 
 The backend enforces CORS origin checking, rate limiting (10 requests/minute on `/print`), a 1 MB request size limit, and input validation on all fields.
 

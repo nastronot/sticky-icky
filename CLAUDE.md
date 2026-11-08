@@ -112,7 +112,9 @@ P{copies}\r\n                              — print N copies
 ### Compose files
 
 - `docker-compose.yml` — local testing, builds from source, frontend on `localhost:3000`.
-- `docker-compose.prod.yml` — Synology NAS, pulls GHCR images, reads `.env` for `CORS_ORIGINS`, passes `/dev/ttyUSB0` into the backend.
+- `docker-compose.prod.yml` — Synology NAS (arda), pulls GHCR images, reads `.env` for `CORS_ORIGINS`, passes `/dev/ttyUSB0` into the backend.
+  - **No host port, on purpose.** The frontend joins the external `edge` network and the Cloudflare tunnel routes `sticky.example.com` → `http://sticky-icky-frontend:80`. Until 2026-11-07 it published `3000:80`, which let any LAN device print without passing Cloudflare Access. **Never re-add `ports:` here.** Verify from the LAN: `curl http://<arda-lan-ip>:3000/` must be refused.
+  - **Fixed `container_name`s** (`sticky-icky-frontend`, `sticky-icky-backend`): the tunnel route and Watchtower on arda follow these names. Watchtower was started by hand with `docker run … containrrr/watchtower --interval 300 --cleanup sticky-icky-frontend sticky-icky-backend`; rename a container and both silently lose it.
 
 ### Security
 
@@ -127,7 +129,7 @@ P{copies}\r\n                              — print N copies
 - **nginx headers**: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: geolocation=(), camera=(), microphone=(), interest-cohort=()`, plus a CSP. CSP allows `'unsafe-inline'` on `script-src` and `style-src` because React emits inline `style="…"` and Cloudflare Access injects inline `<script>` blocks (Email Obfuscation, Rocket Loader, etc.) — hash-pinning is unmaintainable. CSP also includes `'wasm-unsafe-eval'` for Tesseract.js and `worker-src 'self' blob:` for its worker.
 - **HSTS lives at the edge** (Synology reverse proxy / Let's Encrypt). Do not add `Strict-Transport-Security` in `frontend/nginx.conf`.
 - **Dependency pin policy**: every dep in `frontend/package.json` and `backend/requirements.txt` is pinned to an exact version (no `^`, `~`, `>=`). `package-lock.json` is committed. No `@types/*` — the frontend is pure JSX.
-- **Network layer**: app assumes Cloudflare Access / VPN / LAN-only in front. No built-in auth. Do not expose the backend directly to the internet.
+- **Network layer**: no built-in auth. In prod, Cloudflare Access is the only way in — the tunnel is the sole ingress and no host port is published (see Compose files). The frontend's port *is* the printer's port, because nginx proxies `/api/print`.
 
 ---
 
